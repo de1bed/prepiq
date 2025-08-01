@@ -9,8 +9,13 @@ const Navigation = () => {
   const location = useLocation();
   
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+  const isLoggedInPage = location.pathname === "/dashboard" || 
+                         location.pathname === "/management" || 
+                         location.pathname === "/servers" || 
+                         location.pathname === "/prep" || 
+                         location.pathname === "/cook";
   
-  if (isAuthPage) return null;
+  if (isAuthPage || isLoggedInPage) return null;
 
   const navItems = [
     { href: "#features", label: "Features" },

@@ -25,7 +25,7 @@ interface Order {
   tableNumber: string;
   items: OrderItem[];
   timestamp: Date;
-  status: 'open' | 'cooking' | 'ready';
+  status: 'new' | 'open' | 'ready';
   specialInstructions?: string;
   isRevealed?: boolean;
 }
@@ -66,7 +66,7 @@ const Cook = () => {
         id: 1,
         tableNumber: "Table 12",
         timestamp: new Date(Date.now() - 8 * 60000),
-        status: 'open',
+        status: 'new',
         isRevealed: false,
         items: [
           {
@@ -86,7 +86,7 @@ const Cook = () => {
         id: 2,
         tableNumber: "Table 7",
         timestamp: new Date(Date.now() - 3 * 60000),
-        status: 'cooking',
+        status: 'open',
         isRevealed: true,
         items: [
           {
@@ -144,7 +144,7 @@ const Cook = () => {
   const openTicket = (orderId: number) => {
     setOrders(orders => 
       orders.map(order => 
-        order.id === orderId ? { ...order, isRevealed: true, status: 'cooking' } : order
+        order.id === orderId ? { ...order, isRevealed: true, status: 'open' } : order
       )
     );
   };
@@ -193,17 +193,17 @@ const Cook = () => {
 
   const getStatusBadge = (status: Order['status']) => {
     switch (status) {
-      case 'open':
+      case 'new':
         return <Badge variant="destructive">New</Badge>;
-      case 'cooking':
-        return <Badge variant="secondary">Cooking</Badge>;
+      case 'open':
+        return <Badge variant="secondary">Open</Badge>;
       case 'ready':
         return <Badge className="bg-success text-white">Ready</Badge>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-kitchen-dark text-white">
+    <div className="min-h-screen bg-kitchen-dark text-white overflow-y-auto">
       {/* Header */}
       <header className="bg-kitchen-surface border-b border-white/10">
         <div className="container mx-auto px-4 py-4">
@@ -229,37 +229,53 @@ const Cook = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {/* Station Stats */}
-        <div className="grid md:grid-cols-4 gap-4 mb-6">
+        {/* Top Data Bar - Station Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
           <Card className="bg-kitchen-surface border-white/10">
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="text-center">
-                <p className="text-2xl font-bold text-warning">4</p>
-                <p className="text-sm text-white/70">Fries Orders</p>
+                <p className="text-lg font-bold text-warning">4</p>
+                <p className="text-xs text-white/70">Fry Orders</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-kitchen-surface border-white/10">
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="text-center">
-                <p className="text-2xl font-bold text-white">3</p>
-                <p className="text-sm text-white/70">Current Grill</p>
+                <p className="text-lg font-bold text-white">3</p>
+                <p className="text-xs text-white/70">Grill Active</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-kitchen-surface border-white/10">
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="text-center">
-                <p className="text-2xl font-bold text-success">0</p>
-                <p className="text-sm text-white/70">Pizza</p>
+                <p className="text-lg font-bold text-success">0</p>
+                <p className="text-xs text-white/70">Salad</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-kitchen-surface border-white/10">
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="text-center">
-                <p className="text-2xl font-bold text-destructive">2</p>
-                <p className="text-sm text-white/70">Urgent</p>
+                <p className="text-lg font-bold text-primary">3</p>
+                <p className="text-xs text-white/70">Broiler</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-kitchen-surface border-white/10">
+            <CardContent className="p-3">
+              <div className="text-center">
+                <p className="text-lg font-bold text-warning">5</p>
+                <p className="text-xs text-white/70">Fries Orders</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-kitchen-surface border-white/10">
+            <CardContent className="p-3">
+              <div className="text-center">
+                <p className="text-lg font-bold text-destructive">2</p>
+                <p className="text-xs text-white/70">Urgent</p>
               </div>
             </CardContent>
           </Card>
@@ -281,6 +297,30 @@ const Cook = () => {
                   <RotateCcw className="h-5 w-5 mr-2" />
                   Recall ({recalledOrders.length})
                 </Button>
+                
+                {/* Left Action Panel */}
+                <div className="space-y-2 pt-4">
+                  <p className="text-white/70 text-sm font-medium">Quick Actions:</p>
+                  <Button 
+                    onClick={() => {/* Future: Open selected ticket */}}
+                    variant="kitchen" 
+                    className="w-full h-12 text-white"
+                    disabled
+                  >
+                    Open Selected
+                  </Button>
+                  <Button 
+                    onClick={() => {/* Future: Sell selected ticket */}}
+                    variant="success" 
+                    className="w-full h-12 text-white"
+                    disabled
+                  >
+                    Sell Selected
+                  </Button>
+                  <div className="text-xs text-white/50 pt-2">
+                    Future: Delay, Summary, Transfer
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -368,59 +408,62 @@ const Cook = () => {
               <CardContent>
                 <div className="space-y-4">
                   {orders.map((order) => (
-                    <div key={order.id} className={`border-2 rounded-lg p-4 transition-all ${
-                      order.isRevealed ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-gray-50'
+                     <div key={order.id} className={`border-2 rounded-lg p-4 transition-all duration-300 ${
+                      order.isRevealed ? 'border-primary bg-white' : 'border-gray-300 bg-gray-100'
                     }`}>
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center space-x-4">
-                          <h3 className="text-xl font-bold">{order.tableNumber}</h3>
+                          <h3 className="text-xl font-bold text-black">{order.tableNumber}</h3>
                           {getStatusBadge(order.status)}
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Timer className="h-4 w-4" />
+                          <Timer className="h-4 w-4 text-black" />
                           <span className={`font-medium ${getTimeColor(getTimeSinceOrder(order.timestamp))}`}>
                             {getTimeSinceOrder(order.timestamp)}:00
                           </span>
                         </div>
                       </div>
 
-                      {order.items.map((item, index) => (
-                        <div key={index} className="mb-3">
-                          <div className="flex justify-between items-center mb-2">
-                            <h4 className="font-semibold text-lg">{item.name}</h4>
-                            <div className="flex space-x-2">
-                              {item.modifiers.map((modifier, modIndex) => (
-                                <Badge key={modIndex} variant="secondary" className="bg-orange-100 text-orange-800">
-                                  {modifier}
-                                </Badge>
-                              ))}
+                      {order.isRevealed && (
+                        <div className="animate-fade-in">
+                          {order.items.map((item, index) => (
+                            <div key={index} className="mb-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-semibold text-lg text-black">{item.name}</h4>
+                                <div className="flex space-x-2">
+                                  {item.modifiers.map((modifier, modIndex) => (
+                                    <Badge key={modIndex} variant="secondary" className="bg-orange-100 text-orange-800">
+                                      {modifier}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              <div className="text-sm text-gray-700">
+                                <strong>Ingredients:</strong> {item.ingredients.map(ing => 
+                                  `${ing.amount}${ing.unit} ${ing.name}`
+                                ).join(', ')}
+                              </div>
                             </div>
-                          </div>
-                          
-                          {order.isRevealed && (
-                            <div className="text-sm text-gray-600">
-                              <strong>Ingredients:</strong> {item.ingredients.map(ing => 
-                                `${ing.amount}${ing.unit} ${ing.name}`
-                              ).join(', ')}
+                          ))}
+
+                          {order.specialInstructions && (
+                            <div className="bg-red-100 border border-red-300 rounded p-2 mb-3">
+                              <p className="text-red-800 font-medium text-sm">
+                                ⚠️ {order.specialInstructions}
+                              </p>
                             </div>
                           )}
                         </div>
-                      ))}
-
-                      {order.specialInstructions && (
-                        <div className="bg-red-100 border border-red-300 rounded p-2 mb-3">
-                          <p className="text-red-800 font-medium text-sm">
-                            ⚠️ {order.specialInstructions}
-                          </p>
-                        </div>
                       )}
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mt-3">
                         {!order.isRevealed && (
                           <Button 
                             onClick={() => openTicket(order.id)}
                             variant="default"
-                            className="bg-blue-600 hover:bg-blue-700"
+                            size="lg"
+                            className="bg-primary text-white hover:bg-primary/90"
                           >
                             <Eye className="h-4 w-4 mr-2" />
                             Open
@@ -430,8 +473,9 @@ const Cook = () => {
                         {order.isRevealed && (
                           <Button 
                             onClick={() => sellOrder(order.id)}
-                            variant="default"
-                            className="bg-green-600 hover:bg-green-700"
+                            variant="success"
+                            size="lg"
+                            className="text-white"
                           >
                             <CheckCircle className="h-4 w-4 mr-2" />
                             Sell
