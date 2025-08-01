@@ -9,10 +9,11 @@ import {
   ArrowLeft,
   Printer,
   Scale,
-  Package,
+  Search,
   Clock,
   CheckCircle,
-  Plus
+  Plus,
+  Package
 } from "lucide-react";
 
 interface PrepItem {
@@ -24,11 +25,28 @@ interface PrepItem {
   recipe: { ingredient: string; amount: number; unit: string }[];
 }
 
+interface RecentPrepEntry {
+  id: number;
+  item: string;
+  weight: number;
+  container: string;
+  timestamp: string;
+  labels: number;
+  rawUsed: { ingredient: string; amount: number; unit: string; totalUsed: number }[];
+}
+
 const Prep = () => {
   const [selectedItem, setSelectedItem] = useState<PrepItem | null>(null);
   const [prepWeight, setPrepWeight] = useState("");
   const [selectedContainer, setSelectedContainer] = useState("");
-  const [recentlyPrepped, setRecentlyPrepped] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLargeBatch, setIsLargeBatch] = useState(false);
+  const [batchMultiplier, setBatchMultiplier] = useState("1");
+  const [labelCount, setLabelCount] = useState(1);
+  const [showLabelModal, setShowLabelModal] = useState(false);
+  const [recentlyPrepped, setRecentlyPrepped] = useState<RecentPrepEntry[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
+  const [lastPrepSummary, setLastPrepSummary] = useState<any>(null);
 
   const prepItems: PrepItem[] = [
     {
@@ -86,27 +104,70 @@ const Prep = () => {
 
   const containers = [
     "Third Pan",
+    "Half Pan", 
     "Sixth Pan",
     "Full Pan",
+    "Quart Container",
     "2L Container",
     "1L Container",
     "500ml Container"
   ];
 
+  const batchOptions = [
+    { label: "¼ Batch", value: "0.25" },
+    { label: "½ Batch", value: "0.5" },
+    { label: "1× Batch", value: "1" },
+    { label: "1.5× Batch", value: "1.5" },
+    { label: "2× Batch", value: "2" }
+  ];
+
+  const filteredItems = prepItems.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const suggestedItems = searchQuery ? filteredItems : prepItems.slice(0, 4);
+
+  const calculateIngredientUsage = (item: PrepItem, finalWeight: number) => {
+    const baseWeight = item.recipe.reduce((total, ingredient) => total + ingredient.amount, 0);
+    const ratio = finalWeight / baseWeight;
+    
+    return item.recipe.map(ingredient => ({
+      ...ingredient,
+      totalUsed: ingredient.amount * ratio
+    }));
+  };
+
   const handlePrepComplete = () => {
     if (!selectedItem || !prepWeight || !selectedContainer) return;
 
     const weight = parseFloat(prepWeight);
-    const newPrepEntry = {
-      id: Date.now(),
+    const multiplier = isLargeBatch ? parseFloat(batchMultiplier) : 1;
+    const finalWeight = weight * multiplier;
+
+    const rawUsed = calculateIngredientUsage(selectedItem, finalWeight);
+    
+    setLastPrepSummary({
       item: selectedItem.name,
-      weight: weight,
+      weight: finalWeight,
       container: selectedContainer,
+      rawUsed: rawUsed
+    });
+
+    setShowLabelModal(true);
+  };
+
+  const handlePrintLabels = () => {
+    if (!lastPrepSummary) return;
+
+    const newPrepEntry: RecentPrepEntry = {
+      id: Date.now(),
+      item: lastPrepSummary.item,
+      weight: lastPrepSummary.weight,
+      container: lastPrepSummary.container,
       timestamp: new Date().toLocaleTimeString(),
-      rawUsed: selectedItem.recipe.map(r => ({
-        ...r,
-        totalUsed: (r.amount * weight) / 100 // Calculate based on weight
-      }))
+      labels: labelCount,
+      rawUsed: lastPrepSummary.rawUsed
     };
 
     setRecentlyPrepped([newPrepEntry, ...recentlyPrepped.slice(0, 4)]);
@@ -115,12 +176,14 @@ const Prep = () => {
     setSelectedItem(null);
     setPrepWeight("");
     setSelectedContainer("");
+    setIsLargeBatch(false);
+    setBatchMultiplier("1");
+    setLabelCount(1);
+    setShowLabelModal(false);
+    setShowSummary(true);
 
-    alert(`${selectedItem.name} (${weight}g) prepared and labeled!\nInventory updated automatically.`);
-  };
-
-  const printLabel = (item: any) => {
-    alert(`Printing label for ${item.item}\nWeight: ${item.weight}g\nContainer: ${item.container}\nTime: ${item.timestamp}`);
+    // Hide summary after 5 seconds
+    setTimeout(() => setShowSummary(false), 5000);
   };
 
   return (
@@ -137,7 +200,7 @@ const Prep = () => {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold">Prep Station</h1>
-                <p className="text-muted-foreground">Register prepared food and update inventory</p>
+                <p className="text-muted-foreground">Search and log prepared items, update stock, and print labels</p>
               </div>
             </div>
             <Badge variant="outline" className="bg-success text-white">
@@ -148,19 +211,61 @@ const Prep = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Success Summary */}
+        {showSummary && lastPrepSummary && (
+          <Card className="mb-6 border-success bg-success/5">
+            <CardContent className="p-4">
+              <div className="flex items-start space-x-3">
+                <CheckCircle className="h-5 w-5 text-success mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-success">
+                    ✅ {lastPrepSummary.weight}g of {lastPrepSummary.item} added to Prep Availability. Raw Inventory Adjusted.
+                  </h3>
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    <strong>Raw ingredients used:</strong>
+                    <ul className="grid grid-cols-2 gap-1 mt-1">
+                      {lastPrepSummary.rawUsed.map((ingredient: any, index: number) => (
+                        <li key={index}>
+                          {ingredient.ingredient}: -{ingredient.totalUsed.toFixed(1)}{ingredient.unit}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Prep Items List */}
+          {/* Search and Prep Items */}
           <div className="lg:col-span-2">
+            {/* Search Bar */}
+            <Card className="mb-6">
+              <CardContent className="p-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search product..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Suggested Prep Items */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Package className="h-5 w-5 mr-2" />
-                  Available Prep Items
+                  {searchQuery ? `Search Results (${filteredItems.length})` : 'Suggested Prep Items'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
-                  {prepItems.map((item) => (
+                  {suggestedItems.map((item) => (
                     <div 
                       key={item.id} 
                       className={`p-4 border rounded-lg cursor-pointer transition-all ${
@@ -196,7 +301,7 @@ const Prep = () => {
                       <div key={index} className="p-3 bg-muted rounded-lg">
                         <div className="font-medium">{ingredient.ingredient}</div>
                         <div className="text-sm text-muted-foreground">
-                          {ingredient.amount}{ingredient.unit} per 100g
+                          {ingredient.amount}{ingredient.unit} per batch
                         </div>
                       </div>
                     ))}
@@ -206,13 +311,13 @@ const Prep = () => {
             )}
           </div>
 
-          {/* Prep Input Panel */}
+          {/* Prep Registration Form */}
           <div>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Scale className="h-5 w-5 mr-2" />
-                  Scale Integration
+                  Prep Registration
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -242,6 +347,39 @@ const Prep = () => {
                     </Select>
                   </div>
 
+                  {/* Large Batch Toggle */}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="largeBatch"
+                      checked={isLargeBatch}
+                      onChange={(e) => setIsLargeBatch(e.target.checked)}
+                      className="rounded border-border"
+                    />
+                    <label htmlFor="largeBatch" className="text-sm font-medium">
+                      Large Batch?
+                    </label>
+                  </div>
+
+                  {/* Batch Multiplier */}
+                  {isLargeBatch && (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Batch Size</label>
+                      <Select value={batchMultiplier} onValueChange={setBatchMultiplier}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select batch size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {batchOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {/* Weight Input */}
                   <div>
                     <label className="text-sm font-medium mb-2 block">Weight (grams)</label>
@@ -262,7 +400,7 @@ const Prep = () => {
                     disabled={!selectedItem || !prepWeight || !selectedContainer}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Complete Prep & Label
+                    Print Label and Add to Inventory
                   </Button>
 
                   {/* Mock Scale Reading */}
@@ -271,6 +409,11 @@ const Prep = () => {
                     <div className="text-2xl font-bold text-blue-900">
                       {prepWeight || "0.0"}g
                     </div>
+                    {isLargeBatch && (
+                      <div className="text-sm text-blue-700">
+                        Total: {((parseFloat(prepWeight) || 0) * parseFloat(batchMultiplier)).toFixed(1)}g
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -290,20 +433,25 @@ const Prep = () => {
                 ) : (
                   <div className="space-y-3">
                     {recentlyPrepped.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex-1">
-                          <div className="font-medium">{item.item}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {item.weight}g • {item.container} • {item.timestamp}
+                      <div key={item.id} className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium">{item.item}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {item.weight}g • {item.container} • {item.timestamp}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Labels: {item.labels}
+                            </div>
                           </div>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => alert(`Reprinting ${item.labels} label(s) for ${item.item}`)}
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => printLabel(item)}
-                        >
-                          <Printer className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -311,17 +459,19 @@ const Prep = () => {
               </CardContent>
             </Card>
 
-            {/* Quick Stats */}
+            {/* Right-Side Stats */}
             <Card className="mt-6">
               <CardContent className="p-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Items Prepped Today:</span>
-                    <span className="font-medium">23</span>
+                    <span className="font-medium">{recentlyPrepped.length + 20}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Total Weight:</span>
-                    <span className="font-medium">15.2 lbs</span>
+                    <span className="font-medium">
+                      {(recentlyPrepped.reduce((sum, item) => sum + item.weight, 0) / 1000 + 15.2).toFixed(1)} kg
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Efficiency:</span>
@@ -333,6 +483,51 @@ const Prep = () => {
           </div>
         </div>
       </main>
+
+      {/* Label Count Modal */}
+      {showLabelModal && lastPrepSummary && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="bg-white w-96">
+            <CardHeader>
+              <CardTitle>Print Labels</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {lastPrepSummary.item} - {lastPrepSummary.weight}g in {lastPrepSummary.container}
+                  </p>
+                  <label className="text-sm font-medium mb-2 block">How many labels do you need?</label>
+                  <Select value={labelCount.toString()} onValueChange={(value) => setLabelCount(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+                        <SelectItem key={num} value={num.toString()}>
+                          {num} label{num > 1 ? 's' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handlePrintLabels} className="flex-1">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print Labels
+                  </Button>
+                  <Button 
+                    onClick={() => setShowLabelModal(false)}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
