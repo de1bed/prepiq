@@ -53,7 +53,7 @@ interface PrepLogEntry {
 }
 
 const Prep = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { currentSession } = useSession();
   const { toast } = useToast();
   
@@ -189,7 +189,7 @@ const Prep = () => {
   };
 
   const handlePrepComplete = async () => {
-    if (!selectedRecipe || !selectedContainer || !profile?.user_id || !currentSession) return;
+    if (!selectedRecipe || !selectedContainer || !user?.id || !currentSession) return;
 
     const batchQuantity = useCustomBatch ? 
       parseFloat(customBatchSize) || 1 : 
@@ -204,7 +204,7 @@ const Prep = () => {
         .insert({
           restaurant_id: profile.restaurant_id,
           session_id: currentSession.id,
-          employee_id: profile.user_id,
+          employee_id: user.id,
           recipe_id: selectedRecipe.id,
           batch_quantity: batchQuantity,
           container_info: selectedContainer

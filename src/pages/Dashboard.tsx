@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useSession } from "@/hooks/useSession";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StationAccess } from "@/components/StationAccess";
 import { 
   ChefHat, 
   Users, 
@@ -16,64 +15,20 @@ import {
   Settings
 } from "lucide-react";
 
-interface DashboardStats {
-  ordersToday: number;
-  activeStaff: number;
-  prepItemsReady: number;
-}
-
 const Dashboard = () => {
-  const { user, profile, signOut } = useAuth();
-  const { currentSession } = useSession();
-  const [stats, setStats] = useState<DashboardStats>({
-    ordersToday: 0,
-    activeStaff: 0,
-    prepItemsReady: 0
-  });
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (profile?.restaurant_id && currentSession) {
-      fetchDashboardStats();
-    }
-  }, [profile?.restaurant_id, currentSession]);
-
-  const fetchDashboardStats = async () => {
-    if (!profile?.restaurant_id || !currentSession) return;
-
-    try {
-      // Get orders count for today
-      const { count: ordersCount } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('restaurant_id', profile.restaurant_id)
-        .eq('session_id', currentSession.id);
-
-      // Get active staff count
-      const { count: activeStaffCount } = await supabase
-        .from('clock_logs')
-        .select('employee_id', { count: 'exact', head: true })
-        .eq('restaurant_id', profile.restaurant_id)
-        .eq('session_id', currentSession.id)
-        .eq('status', 'clocked_in');
-
-      // Get prep items ready count
-      const { count: prepItemsCount } = await supabase
-        .from('prep_availability')
-        .select('*', { count: 'exact', head: true })
-        .eq('restaurant_id', profile.restaurant_id)
-        .eq('session_id', currentSession.id)
-        .gt('available_batches', 0);
-
-      setStats({
-        ordersToday: ordersCount || 0,
-        activeStaff: activeStaffCount || 0,
-        prepItemsReady: prepItemsCount || 0
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-    }
-  };
+  const [accessDialog, setAccessDialog] = useState<{
+    isOpen: boolean;
+    stationId: string;
+    stationTitle: string;
+    stationPath: string;
+  }>({
+    isOpen: false,
+    stationId: '',
+    stationTitle: '',
+    stationPath: ''
+  });
 
   const handleLogout = async () => {
     try {
@@ -84,48 +39,69 @@ const Dashboard = () => {
     }
   };
 
-  const roles = [
-    {
-      id: "management",
-      title: "Management",
-      description: "Oversee operations, analytics, and settings",
-      icon: BarChart3,
-      path: "/management",
-      color: "bg-gradient-primary",
-      allowedRoles: ['manager', 'admin']
-    },
+  const stations = [
     {
       id: "servers",
-      title: "Servers",
-      description: "Take orders and manage customer requests",
+      title: "Meseros",
+      description: "Tomar órdenes y gestionar solicitudes de clientes",
       icon: Users,
       path: "/servers",
       color: "bg-gradient-secondary",
-      allowedRoles: ['server', 'manager', 'admin']
+      code: "1111"
     },
     {
       id: "prep",
-      title: "Prep Station",
-      description: "Register prepared food and update inventory",
+      title: "Preparadores",
+      description: "Registrar comida preparada y actualizar inventario",
       icon: ClipboardList,
       path: "/prep",
       color: "bg-success",
-      allowedRoles: ['prep', 'manager', 'admin']
+      code: "2222"
     },
     {
       id: "cook",
-      title: "Cook Station",
-      description: "Receive and manage live kitchen orders",
+      title: "Cocineros",
+      description: "Recibir y gestionar órdenes de cocina en vivo",
       icon: Utensils,
       path: "/cook",
       color: "bg-warning",
-      allowedRoles: ['cook', 'manager', 'admin']
+      code: "3333"
+    },
+    {
+      id: "management",
+      title: "Management",
+      description: "Supervisar operaciones, análisis y configuraciones",
+      icon: BarChart3,
+      path: "/management",
+      color: "bg-gradient-primary",
+      code: "4444"
     }
   ];
 
-  const availableRoles = roles.filter(role => 
-    role.allowedRoles.includes(profile?.role || 'server')
-  );
+  const handleStationClick = (station: typeof stations[0]) => {
+    // Check if user already has access stored
+    const hasAccess = localStorage.getItem(`station_access_${station.id}`) === 'true';
+    
+    if (hasAccess) {
+      navigate(station.path);
+    } else {
+      setAccessDialog({
+        isOpen: true,
+        stationId: station.id,
+        stationTitle: station.title,
+        stationPath: station.path
+      });
+    }
+  };
+
+  const closeAccessDialog = () => {
+    setAccessDialog({
+      isOpen: false,
+      stationId: '',
+      stationTitle: '',
+      stationPath: ''
+    });
+  };
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -136,11 +112,9 @@ const Dashboard = () => {
             <div className="flex items-center space-x-3">
               <ChefHat className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">
-                  {profile?.first_name} {profile?.last_name}
-                </h1>
+                <h1 className="text-2xl font-bold">PrepIQ Restaurante</h1>
                 <p className="text-sm text-muted-foreground">
-                  {profile?.role} • #{profile?.employee_number}
+                  Sistema de gestión integrado
                 </p>
               </div>
             </div>
@@ -163,91 +137,44 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* Session Status */}
-        {currentSession && (
-          <Card className="mb-8 bg-gradient-primary text-white">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-2">
-                📅 Daily Session Active
-              </h3>
-              <p>
-                Session started at {new Date(currentSession.started_at).toLocaleTimeString()}
-                {!currentSession.is_active && ' (Ended)'}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Role Selection */}
+        {/* Station Selection */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Select Your Station</h2>
+          <h2 className="text-3xl font-bold mb-2">Selecciona tu Estación</h2>
           <p className="text-muted-foreground mb-8">
-            Choose your role to access the appropriate tools and interface
+            Ingresa el código de acceso correspondiente para cada estación
           </p>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {availableRoles.map((role) => (
-              <Link key={role.id} to={role.path}>
-                <Card className="hover:shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer group">
+            {stations.map((station) => (
+              <div key={station.id}>
+                <Card 
+                  className="hover:shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer group"
+                  onClick={() => handleStationClick(station)}
+                >
                   <CardHeader className="text-center pb-4">
-                    <div className={`w-16 h-16 ${role.color} rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform`}>
-                      <role.icon className="h-8 w-8 text-white" />
+                    <div className={`w-16 h-16 ${station.color} rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform`}>
+                      <station.icon className="h-8 w-8 text-white" />
                     </div>
-                    <CardTitle className="text-xl">{role.title}</CardTitle>
+                    <CardTitle className="text-xl">{station.title}</CardTitle>
                   </CardHeader>
                   <CardContent className="text-center pt-0">
-                    <p className="text-muted-foreground text-sm">{role.description}</p>
+                    <p className="text-muted-foreground text-sm mb-2">{station.description}</p>
+                    <p className="text-xs text-muted-foreground">Código: {station.code}</p>
                   </CardContent>
                 </Card>
-              </Link>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Orders Today</p>
-                  <p className="text-2xl font-bold">{stats.ordersToday}</p>
-                </div>
-                <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
-                  <Utensils className="h-6 w-6 text-success" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Active Staff</p>
-                  <p className="text-2xl font-bold">{stats.activeStaff}</p>
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Prep Items Ready</p>
-                  <p className="text-2xl font-bold">{stats.prepItemsReady}</p>
-                </div>
-                <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
-                  <ClipboardList className="h-6 w-6 text-warning" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Station Access Dialog */}
+        <StationAccess
+          isOpen={accessDialog.isOpen}
+          onClose={closeAccessDialog}
+          stationId={accessDialog.stationId}
+          stationTitle={accessDialog.stationTitle}
+          stationPath={accessDialog.stationPath}
+        />
       </main>
     </div>
   );
