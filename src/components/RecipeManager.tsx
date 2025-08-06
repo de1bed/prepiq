@@ -10,14 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Trash2, Edit, ChefHat } from 'lucide-react';
+import { Plus, Trash2, Edit, ChefHat, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { RecipeViewer } from './RecipeViewer';
 
 interface Recipe {
   id: string;
   name: string;
   description: string;
   category: string;
+  recipe_type: string;
   stations: string[];
   batch_size: number;
   prep_time_minutes: number;
@@ -37,22 +39,29 @@ interface Ingredient {
 }
 
 const STATIONS = [
-  { value: 'grill', label: 'Parrilla' },
-  { value: 'fry', label: 'Fritura' },
-  { value: 'salads', label: 'Ensaladas' },
-  { value: 'broiler', label: 'Asador' },
-  { value: 'prep', label: 'Preparación' }
+  { value: 'grill', label: 'Grill' },
+  { value: 'fry', label: 'Fryer' },
+  { value: 'salads', label: 'Salads' },
+  { value: 'broiler', label: 'Broiler' },
+  { value: 'prep', label: 'Prep' }
 ];
 
 const CATEGORIES = [
-  'Entrada', 'Plato Principal', 'Acompañamiento', 'Postre', 'Bebida', 'Salsa', 'Preparación'
+  'Appetizer', 'Main Dish', 'Side', 'Dessert', 'Beverage', 'Sauce', 'Prep'
+];
+
+const RECIPE_TYPES = [
+  { value: 'prep', label: 'Prep Item' },
+  { value: 'line_cook', label: 'Line Cook' }
 ];
 
 export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
   const { profile } = useAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
   // Form state
@@ -60,6 +69,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
     name: '',
     description: '',
     category: '',
+    recipe_type: 'line_cook' as 'prep' | 'line_cook',
     stations: [] as ('grill' | 'fry' | 'salads' | 'broiler' | 'prep')[],
     batch_size: 1,
     prep_time_minutes: 0,
@@ -98,7 +108,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
     if (!profile?.restaurant_id || !formData.name || ingredients.length === 0) {
       toast({
         title: "Error",
-        description: "Completa todos los campos requeridos",
+        description: "Complete all required fields",
         variant: "destructive"
       });
       return;
@@ -116,6 +126,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
             name: formData.name,
             description: formData.description,
             category: formData.category,
+            recipe_type: formData.recipe_type,
             stations: formData.stations as any,
             batch_size: formData.batch_size,
             prep_time_minutes: formData.prep_time_minutes,
@@ -141,6 +152,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
             name: formData.name,
             description: formData.description,
             category: formData.category,
+            recipe_type: formData.recipe_type,
             stations: formData.stations as any,
             batch_size: formData.batch_size,
             prep_time_minutes: formData.prep_time_minutes,
@@ -168,8 +180,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       if (ingredientsError) throw ingredientsError;
 
       toast({
-        title: "Éxito",
-        description: selectedRecipe ? "Receta actualizada" : "Receta creada"
+        title: "Success",
+        description: selectedRecipe ? "Recipe updated" : "Recipe created"
       });
 
       setIsDialogOpen(false);
@@ -179,7 +191,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       console.error('Error saving recipe:', error);
       toast({
         title: "Error",
-        description: "Error al guardar la receta",
+        description: "Error saving recipe",
         variant: "destructive"
       });
     } finally {
@@ -193,6 +205,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       name: recipe.name,
       description: recipe.description || '',
       category: recipe.category,
+      recipe_type: recipe.recipe_type as 'prep' | 'line_cook',
       stations: recipe.stations as any,
       batch_size: recipe.batch_size,
       prep_time_minutes: recipe.prep_time_minutes || 0,
@@ -203,7 +216,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
   };
 
   const handleDeleteRecipe = async (recipeId: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta receta?')) return;
+    if (!confirm('Are you sure you want to delete this recipe?')) return;
 
     try {
       const { error } = await supabase
@@ -214,8 +227,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       if (error) throw error;
 
       toast({
-        title: "Éxito",
-        description: "Receta eliminada"
+        title: "Success",
+        description: "Recipe deleted"
       });
 
       fetchRecipes();
@@ -223,7 +236,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       console.error('Error deleting recipe:', error);
       toast({
         title: "Error",
-        description: "Error al eliminar la receta",
+        description: "Error deleting recipe",
         variant: "destructive"
       });
     }
@@ -249,6 +262,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       name: '',
       description: '',
       category: '',
+      recipe_type: 'line_cook',
       stations: [],
       batch_size: 1,
       prep_time_minutes: 0,
@@ -257,32 +271,37 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
     setIngredients([]);
   };
 
+  const handleViewRecipe = (recipe: Recipe) => {
+    setViewingRecipe(recipe);
+    setIsViewerOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <ChefHat className="h-6 w-6" />
-          Recetas
+          Recipes
         </h2>
         {canEdit && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={resetForm}>
                 <Plus className="mr-2 h-4 w-4" />
-                Nueva Receta
+                New Recipe
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {selectedRecipe ? 'Editar Receta' : 'Nueva Receta'}
+                  {selectedRecipe ? 'Edit Recipe' : 'New Recipe'}
                 </DialogTitle>
               </DialogHeader>
               
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="name">Nombre *</Label>
+                    <Label htmlFor="name">Name *</Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -290,10 +309,10 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="category">Categoría</Label>
+                    <Label htmlFor="category">Category</Label>
                     <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona categoría" />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
                         {CATEGORIES.map(cat => (
@@ -302,10 +321,23 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div>
+                    <Label htmlFor="recipe_type">Recipe Type</Label>
+                    <Select value={formData.recipe_type} onValueChange={(value: 'prep' | 'line_cook') => setFormData({ ...formData, recipe_type: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RECIPE_TYPES.map(type => (
+                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="description">Descripción</Label>
+                  <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
@@ -314,7 +346,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                 </div>
 
                 <div>
-                  <Label>Estaciones</Label>
+                  <Label>Stations</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {STATIONS.map(station => (
                       <div key={station.value} className="flex items-center space-x-2">
@@ -337,7 +369,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="batch_size">Tamaño de Lote</Label>
+                    <Label htmlFor="batch_size">Batch Size</Label>
                     <Input
                       id="batch_size"
                       type="number"
@@ -348,7 +380,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="prep_time">Tiempo Prep (min)</Label>
+                    <Label htmlFor="prep_time">Prep Time (min)</Label>
                     <Input
                       id="prep_time"
                       type="number"
@@ -358,7 +390,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="cook_time">Tiempo Cocina (min)</Label>
+                    <Label htmlFor="cook_time">Cook Time (min)</Label>
                     <Input
                       id="cook_time"
                       type="number"
@@ -371,10 +403,10 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
 
                 <div>
                   <div className="flex justify-between items-center mb-4">
-                    <Label>Ingredientes *</Label>
+                    <Label>Ingredients *</Label>
                     <Button type="button" variant="outline" size="sm" onClick={addIngredient}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Agregar Ingrediente
+                      Add Ingredient
                     </Button>
                   </div>
                   
@@ -382,12 +414,12 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                     {ingredients.map((ingredient, index) => (
                       <div key={index} className="grid grid-cols-4 gap-2 items-end">
                         <Input
-                          placeholder="Ingrediente"
+                          placeholder="Ingredient"
                           value={ingredient.ingredient_name}
                           onChange={(e) => updateIngredient(index, 'ingredient_name', e.target.value)}
                         />
                         <Input
-                          placeholder="Cantidad"
+                          placeholder="Quantity"
                           type="number"
                           min="0"
                           step="0.1"
@@ -395,7 +427,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                           onChange={(e) => updateIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
                         />
                         <Input
-                          placeholder="Unidad (oz, lbs, cups)"
+                          placeholder="Unit (oz, lbs, cups)"
                           value={ingredient.unit}
                           onChange={(e) => updateIngredient(index, 'unit', e.target.value)}
                         />
@@ -414,10 +446,10 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
 
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancelar
+                    Cancel
                   </Button>
                   <Button onClick={handleSaveRecipe} disabled={loading}>
-                    {loading ? 'Guardando...' : 'Guardar'}
+                    {loading ? 'Saving...' : 'Save'}
                   </Button>
                 </div>
               </div>
@@ -437,24 +469,33 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                     {recipe.category}
                   </Badge>
                 </div>
-                {canEdit && (
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditRecipe(recipe)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteRecipe(recipe.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleViewRecipe(recipe)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  {canEdit && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditRecipe(recipe)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteRecipe(recipe.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -463,7 +504,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
               )}
               
               <div>
-                <p className="text-sm font-medium">Estaciones:</p>
+                <p className="text-sm font-medium">Stations:</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {recipe.stations.map((station) => (
                     <Badge key={station} variant="outline" className="text-xs">
@@ -475,7 +516,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
 
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <span className="font-medium">Lote:</span> {recipe.batch_size}
+                  <span className="font-medium">Batch:</span> {recipe.batch_size}
                 </div>
                 <div>
                   <span className="font-medium">Prep:</span> {recipe.prep_time_minutes}min
@@ -483,7 +524,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
               </div>
 
               <div>
-                <p className="text-sm font-medium mb-2">Ingredientes:</p>
+                <p className="text-sm font-medium mb-2">Ingredients:</p>
                 <div className="space-y-1">
                   {recipe.recipe_ingredients?.map((ing, idx) => (
                     <div key={idx} className="text-xs flex justify-between">
@@ -497,6 +538,14 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
           </Card>
         ))}
       </div>
+
+      {/* Recipe Viewer Modal */}
+      <RecipeViewer
+        recipe={viewingRecipe}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        onViewRecipe={handleViewRecipe}
+      />
     </div>
   );
 }
