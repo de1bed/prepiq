@@ -160,6 +160,11 @@ export default function Auth() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-primary">PrepIQ</CardTitle>
           <p className="text-muted-foreground">Sistema de gestión de restaurante</p>
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              ⚠️ Para usar la autenticación, necesitas conectar Supabase haciendo clic en el botón verde "Supabase" en la esquina superior derecha de la interfaz.
+            </p>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
