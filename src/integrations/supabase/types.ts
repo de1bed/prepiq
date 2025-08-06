@@ -418,6 +418,48 @@ export type Database = {
           },
         ]
       }
+      recipe_dependencies: {
+        Row: {
+          child_recipe_id: string
+          created_at: string
+          id: string
+          parent_recipe_id: string
+          quantity_needed: number
+          unit: string
+        }
+        Insert: {
+          child_recipe_id: string
+          created_at?: string
+          id?: string
+          parent_recipe_id: string
+          quantity_needed?: number
+          unit?: string
+        }
+        Update: {
+          child_recipe_id?: string
+          created_at?: string
+          id?: string
+          parent_recipe_id?: string
+          quantity_needed?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_dependencies_child_recipe_id_fkey"
+            columns: ["child_recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_dependencies_parent_recipe_id_fkey"
+            columns: ["parent_recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recipe_ingredients: {
         Row: {
           created_at: string
@@ -464,6 +506,7 @@ export type Database = {
           is_active: boolean
           name: string
           prep_time_minutes: number | null
+          recipe_type: string
           restaurant_id: string
           stations: Database["public"]["Enums"]["station_type"][]
           updated_at: string
@@ -478,6 +521,7 @@ export type Database = {
           is_active?: boolean
           name: string
           prep_time_minutes?: number | null
+          recipe_type?: string
           restaurant_id: string
           stations?: Database["public"]["Enums"]["station_type"][]
           updated_at?: string
@@ -492,6 +536,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           prep_time_minutes?: number | null
+          recipe_type?: string
           restaurant_id?: string
           stations?: Database["public"]["Enums"]["station_type"][]
           updated_at?: string

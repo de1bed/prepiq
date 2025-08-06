@@ -14,6 +14,7 @@ import Management from "./pages/Management";
 import Servers from "./pages/Servers";
 import Prep from "./pages/Prep";
 import Cook from "./pages/Cook";
+import Clock from "./pages/Clock";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ function AppContent() {
         <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
         <Route path="/prep" element={<ProtectedRoute><Prep /></ProtectedRoute>} />
         <Route path="/cook" element={<ProtectedRoute><Cook /></ProtectedRoute>} />
+        <Route path="/clock" element={<ProtectedRoute><Clock /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

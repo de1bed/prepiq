@@ -31,10 +31,18 @@ interface EmployeeStatus {
   hours_today: number;
 }
 
+// Mock employees data for demonstration
+const MOCK_EMPLOYEES = [
+  { number: '111', name: 'Maria Garcia', status: 'clocked_out' as const, hours: 0 },
+  { number: '222', name: 'Pedro Martinez', status: 'clocked_in' as const, hours: 6.5 },
+  { number: '333', name: 'Angel Rodriguez', status: 'on_break' as const, hours: 4.2 }
+];
+
 export function ClockSystem() {
   const { profile } = useAuth();
   const { currentSession } = useSession();
   const [employeeNumber, setEmployeeNumber] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState<typeof MOCK_EMPLOYEES[0] | null>(null);
   const [recentLogs, setRecentLogs] = useState<ClockLog[]>([]);
   const [employeeStatuses, setEmployeeStatuses] = useState<EmployeeStatus[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,11 +145,18 @@ export function ClockSystem() {
     }
   };
 
+  // Handle employee number input
+  const handleEmployeeNumberChange = (value: string) => {
+    setEmployeeNumber(value);
+    const employee = MOCK_EMPLOYEES.find(emp => emp.number === value);
+    setSelectedEmployee(employee || null);
+  };
+
   const handleClockAction = async (action: 'clocked_in' | 'on_break' | 'clocked_out') => {
-    if (!employeeNumber || !profile?.restaurant_id || !currentSession) {
+    if (!selectedEmployee) {
       toast({
         title: "Error",
-        description: "Por favor ingresa tu número de empleado",
+        description: "Please enter your employee number",
         variant: "destructive"
       });
       return;
@@ -149,54 +164,30 @@ export function ClockSystem() {
 
     setLoading(true);
     try {
-      // Find employee by number
-      const { data: employee, error: findError } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('employee_number', employeeNumber)
-        .eq('restaurant_id', profile.restaurant_id)
-        .single();
-
-      if (findError || !employee) {
-        toast({
-          title: "Error",
-          description: "Número de empleado no encontrado",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create clock log
-      const { error: logError } = await supabase
-        .from('clock_logs')
-        .insert({
-          restaurant_id: profile.restaurant_id,
-          employee_id: employee.id,
-          session_id: currentSession.id,
-          status: action
-        });
-
-      if (logError) throw logError;
-
       const actionText = {
-        'clocked_in': 'entrada',
-        'on_break': 'descanso',
-        'clocked_out': 'salida'
+        'clocked_in': 'clocked in',
+        'on_break': 'break',
+        'clocked_out': 'clocked out'
       };
 
       toast({
-        title: "Éxito",
-        description: `${employee.first_name} ${employee.last_name} registró ${actionText[action]}`
+        title: "Success",
+        description: `${selectedEmployee.name} ${actionText[action]} successfully`
       });
 
+      // Update mock employee status
+      const updatedEmployee = MOCK_EMPLOYEES.find(emp => emp.number === selectedEmployee.number);
+      if (updatedEmployee) {
+        updatedEmployee.status = action;
+      }
+
       setEmployeeNumber('');
-      fetchRecentLogs();
-      fetchEmployeeStatuses();
+      setSelectedEmployee(null);
     } catch (error) {
       console.error('Error recording clock action:', error);
       toast({
         title: "Error",
-        description: "Error al registrar la acción",
+        description: "Error recording action",
         variant: "destructive"
       });
     } finally {
@@ -212,9 +203,9 @@ export function ClockSystem() {
     } as const;
 
     const labels = {
-      'clocked_in': 'Trabajando',
-      'on_break': 'En descanso',
-      'clocked_out': 'Fuera'
+      'clocked_in': 'Working',
+      'on_break': 'On Break',
+      'clocked_out': 'Off Duty'
     };
 
     return (
@@ -230,70 +221,104 @@ export function ClockSystem() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Sistema de Checador
+            Time Clock System
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
+          <div className="space-y-2">
             <Input
-              placeholder="Número de empleado"
+              placeholder="Employee number"
               value={employeeNumber}
-              onChange={(e) => setEmployeeNumber(e.target.value)}
-              maxLength={6}
+              onChange={(e) => handleEmployeeNumberChange(e.target.value)}
+              maxLength={3}
             />
+            {selectedEmployee && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">{selectedEmployee.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Current Status: {getStatusBadge(selectedEmployee.status)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Hours Today: {selectedEmployee.hours}h
+                </p>
+              </div>
+            )}
           </div>
-          <div className="flex gap-2">
+          
+          {selectedEmployee && selectedEmployee.status === 'clocked_out' && (
             <Button
               onClick={() => handleClockAction('clocked_in')}
               disabled={loading}
-              className="flex-1"
+              className="w-full"
             >
               <LogIn className="mr-2 h-4 w-4" />
-              Entrada
+              Clock In
             </Button>
-            <Button
-              onClick={() => handleClockAction('on_break')}
-              disabled={loading}
-              variant="secondary"
-              className="flex-1"
-            >
-              <Coffee className="mr-2 h-4 w-4" />
-              Descanso
-            </Button>
-            <Button
-              onClick={() => handleClockAction('clocked_out')}
-              disabled={loading}
-              variant="outline"
-              className="flex-1"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Salida
-            </Button>
-          </div>
+          )}
+          
+          {selectedEmployee && selectedEmployee.status === 'clocked_in' && (
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleClockAction('on_break')}
+                disabled={loading}
+                variant="secondary"
+                className="flex-1"
+              >
+                <Coffee className="mr-2 h-4 w-4" />
+                Break
+              </Button>
+              <Button
+                onClick={() => handleClockAction('clocked_out')}
+                disabled={loading}
+                variant="outline"
+                className="flex-1"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Clock Out
+              </Button>
+            </div>
+          )}
+          
+          {selectedEmployee && selectedEmployee.status === 'on_break' && (
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleClockAction('clocked_in')}
+                disabled={loading}
+                className="flex-1"
+              >
+                <LogIn className="mr-2 h-4 w-4" />
+                Return to Work
+              </Button>
+              <Button
+                onClick={() => handleClockAction('clocked_out')}
+                disabled={loading}
+                variant="outline"
+                className="flex-1"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Clock Out
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Estado del Personal</CardTitle>
+            <CardTitle>Staff Status</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {employeeStatuses.map((employee) => (
-                <div key={employee.employee_id} className="flex items-center justify-between p-3 border rounded-lg">
+              {MOCK_EMPLOYEES.map((employee) => (
+                <div key={employee.number} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <p className="font-medium">{employee.first_name} {employee.last_name}</p>
-                    <p className="text-sm text-muted-foreground">#{employee.employee_number}</p>
-                    <p className="text-sm text-muted-foreground">{employee.hours_today}h hoy</p>
+                    <p className="font-medium">{employee.name}</p>
+                    <p className="text-sm text-muted-foreground">#{employee.number}</p>
+                    <p className="text-sm text-muted-foreground">{employee.hours}h today</p>
                   </div>
                   <div className="text-right">
                     {getStatusBadge(employee.status)}
-                    {employee.last_action && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(employee.last_action).toLocaleTimeString()}
-                      </p>
-                    )}
                   </div>
                 </div>
               ))}
@@ -303,28 +328,11 @@ export function ClockSystem() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Actividad Reciente</CardTitle>
+            <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {recentLogs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">
-                      {log.profiles.first_name} {log.profiles.last_name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      #{log.profiles.employee_number}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {getStatusBadge(log.status)}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-3 text-muted-foreground text-center py-8">
+              <p>Activity will appear here once employees start using the system</p>
             </div>
           </CardContent>
         </Card>

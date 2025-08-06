@@ -12,7 +12,8 @@ import {
   ClipboardList, 
   BarChart3,
   LogOut,
-  Settings
+  Settings,
+  Clock
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -42,8 +43,8 @@ const Dashboard = () => {
   const stations = [
     {
       id: "servers",
-      title: "Meseros",
-      description: "Tomar órdenes y gestionar solicitudes de clientes",
+      title: "Servers",
+      description: "Take orders and manage customer requests",
       icon: Users,
       path: "/servers",
       color: "bg-gradient-secondary",
@@ -51,8 +52,8 @@ const Dashboard = () => {
     },
     {
       id: "prep",
-      title: "Preparadores",
-      description: "Registrar comida preparada y actualizar inventario",
+      title: "Prep",
+      description: "Log prepared food and update inventory",
       icon: ClipboardList,
       path: "/prep",
       color: "bg-success",
@@ -60,8 +61,8 @@ const Dashboard = () => {
     },
     {
       id: "cook",
-      title: "Cocineros",
-      description: "Recibir y gestionar órdenes de cocina en vivo",
+      title: "Cook",
+      description: "Receive and manage live kitchen orders",
       icon: Utensils,
       path: "/cook",
       color: "bg-warning",
@@ -70,11 +71,20 @@ const Dashboard = () => {
     {
       id: "management",
       title: "Management",
-      description: "Supervisar operaciones, análisis y configuraciones",
+      description: "Supervise operations, analytics and settings",
       icon: BarChart3,
       path: "/management",
       color: "bg-gradient-primary",
       code: "4444"
+    },
+    {
+      id: "clock",
+      title: "Clock In/Out",
+      description: "Employee time tracking and attendance",
+      icon: Clock,
+      path: "/clock",
+      color: "bg-secondary",
+      code: "5555"
     }
   ];
 
@@ -112,9 +122,9 @@ const Dashboard = () => {
             <div className="flex items-center space-x-3">
               <ChefHat className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">PrepIQ Restaurante</h1>
+              <h1 className="text-2xl font-bold">PrepIQ Restaurant</h1>
                 <p className="text-sm text-muted-foreground">
-                  Sistema de gestión integrado
+                  Integrated Management System
                 </p>
               </div>
             </div>
@@ -139,12 +149,12 @@ const Dashboard = () => {
       <main className="container mx-auto px-4 py-8">
         {/* Station Selection */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Selecciona tu Estación</h2>
+          <h2 className="text-3xl font-bold mb-2">Select Your Station</h2>
           <p className="text-muted-foreground mb-8">
-            Ingresa el código de acceso correspondiente para cada estación
+            Enter the corresponding access code for each station
           </p>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {stations.map((station) => (
               <div key={station.id}>
                 <Card 
@@ -159,7 +169,7 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent className="text-center pt-0">
                     <p className="text-muted-foreground text-sm mb-2">{station.description}</p>
-                    <p className="text-xs text-muted-foreground">Código: {station.code}</p>
+                    <p className="text-xs text-muted-foreground">Code: {station.code}</p>
                   </CardContent>
                 </Card>
               </div>

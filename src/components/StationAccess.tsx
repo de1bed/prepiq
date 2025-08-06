@@ -19,7 +19,8 @@ const STATION_CODES = {
   servers: '1111',
   prep: '2222',
   cook: '3333',
-  management: '4444'
+  management: '4444',
+  clock: '5555'
 };
 
 export function StationAccess({ isOpen, onClose, stationId, stationTitle, stationPath }: StationAccessProps) {
@@ -39,16 +40,16 @@ export function StationAccess({ isOpen, onClose, stationId, stationTitle, statio
       localStorage.setItem(`station_access_${stationId}`, 'true');
       
       toast({
-        title: "Acceso Concedido",
-        description: `Bienvenido a ${stationTitle}`
+        title: "Access Granted",
+        description: `Welcome to ${stationTitle}`
       });
       
       onClose();
       navigate(stationPath);
     } else {
       toast({
-        title: "Código Incorrecto",
-        description: "El código de acceso no es válido",
+        title: "Incorrect Code",
+        description: "The access code is not valid",
         variant: "destructive"
       });
     }
@@ -63,19 +64,19 @@ export function StationAccess({ isOpen, onClose, stationId, stationTitle, statio
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-5 w-5" />
-            Acceso a {stationTitle}
+            Access to {stationTitle}
           </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="accessCode">Código de Acceso</Label>
+            <Label htmlFor="accessCode">Access Code</Label>
             <Input
               id="accessCode"
               type="password"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Ingresa el código de 4 dígitos"
+              placeholder="Enter 4-digit code"
               maxLength={4}
               className="text-center text-lg tracking-widest"
               autoFocus
@@ -84,10 +85,10 @@ export function StationAccess({ isOpen, onClose, stationId, stationTitle, statio
           
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={loading || code.length !== 4} className="flex-1">
-              {loading ? 'Verificando...' : 'Acceder'}
+              {loading ? 'Verifying...' : 'Access'}
             </Button>
           </div>
         </form>
