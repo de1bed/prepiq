@@ -8,7 +8,7 @@ const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   
-  const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+  const isAuthPage = location.pathname === "/auth";
   const isLoggedInPage = location.pathname === "/dashboard" || 
                          location.pathname === "/management" || 
                          location.pathname === "/servers" || 
@@ -49,10 +49,10 @@ const Navigation = () => {
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <Link to="/login">
+            <Link to="/auth">
               <Button variant="ghost">Log In</Button>
             </Link>
-            <Link to="/signup">
+            <Link to="/auth">
               <Button variant="hero">Sign Up</Button>
             </Link>
           </div>
@@ -77,10 +77,10 @@ const Navigation = () => {
                   </a>
                 ))}
                 <div className="pt-6 space-y-3">
-                  <Link to="/login" onClick={() => setIsOpen(false)}>
+                  <Link to="/auth" onClick={() => setIsOpen(false)}>
                     <Button variant="outline" className="w-full">Log In</Button>
                   </Link>
-                  <Link to="/signup" onClick={() => setIsOpen(false)}>
+                  <Link to="/auth" onClick={() => setIsOpen(false)}>
                     <Button variant="hero" className="w-full">Sign Up</Button>
                   </Link>
                 </div>

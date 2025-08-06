@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { useRealtime } from "./hooks/useRealtime";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import Navigation from "./components/Navigation";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -26,11 +27,11 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/management" element={<Management />} />
-        <Route path="/servers" element={<Servers />} />
-        <Route path="/prep" element={<Prep />} />
-        <Route path="/cook" element={<Cook />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/management" element={<ProtectedRoute><Management /></ProtectedRoute>} />
+        <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
+        <Route path="/prep" element={<ProtectedRoute><Prep /></ProtectedRoute>} />
+        <Route path="/cook" element={<ProtectedRoute><Cook /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

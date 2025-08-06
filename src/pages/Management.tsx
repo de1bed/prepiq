@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { AIAssistant } from "@/components/AIAssistant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -595,6 +596,8 @@ const Management = () => {
           </TabsContent>
         </Tabs>
       </main>
+      
+      <AIAssistant context="management" />
     </div>
   );
 };

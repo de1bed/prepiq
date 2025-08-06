@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/hooks/useSession";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,28 +16,72 @@ import {
   Settings
 } from "lucide-react";
 
-interface UserData {
-  email: string;
-  restaurant: string;
-  location: string;
+interface DashboardStats {
+  ordersToday: number;
+  activeStaff: number;
+  prepItemsReady: number;
 }
 
 const Dashboard = () => {
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const { user, profile, signOut } = useAuth();
+  const { currentSession } = useSession();
+  const [stats, setStats] = useState<DashboardStats>({
+    ordersToday: 0,
+    activeStaff: 0,
+    prepItemsReady: 0
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
-    const user = localStorage.getItem("prepiq_user");
-    if (!user) {
-      navigate("/login");
-      return;
+    if (profile?.restaurant_id && currentSession) {
+      fetchDashboardStats();
     }
-    setUserData(JSON.parse(user));
-  }, [navigate]);
+  }, [profile?.restaurant_id, currentSession]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("prepiq_user");
-    navigate("/");
+  const fetchDashboardStats = async () => {
+    if (!profile?.restaurant_id || !currentSession) return;
+
+    try {
+      // Get orders count for today
+      const { count: ordersCount } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('restaurant_id', profile.restaurant_id)
+        .eq('session_id', currentSession.id);
+
+      // Get active staff count
+      const { count: activeStaffCount } = await supabase
+        .from('clock_logs')
+        .select('employee_id', { count: 'exact', head: true })
+        .eq('restaurant_id', profile.restaurant_id)
+        .eq('session_id', currentSession.id)
+        .eq('status', 'clocked_in');
+
+      // Get prep items ready count
+      const { count: prepItemsCount } = await supabase
+        .from('prep_availability')
+        .select('*', { count: 'exact', head: true })
+        .eq('restaurant_id', profile.restaurant_id)
+        .eq('session_id', currentSession.id)
+        .gt('available_batches', 0);
+
+      setStats({
+        ordersToday: ordersCount || 0,
+        activeStaff: activeStaffCount || 0,
+        prepItemsReady: prepItemsCount || 0
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const roles = [
@@ -44,7 +91,8 @@ const Dashboard = () => {
       description: "Oversee operations, analytics, and settings",
       icon: BarChart3,
       path: "/management",
-      color: "bg-gradient-primary"
+      color: "bg-gradient-primary",
+      allowedRoles: ['manager', 'admin']
     },
     {
       id: "servers",
@@ -52,7 +100,8 @@ const Dashboard = () => {
       description: "Take orders and manage customer requests",
       icon: Users,
       path: "/servers",
-      color: "bg-gradient-secondary"
+      color: "bg-gradient-secondary",
+      allowedRoles: ['server', 'manager', 'admin']
     },
     {
       id: "prep",
@@ -60,7 +109,8 @@ const Dashboard = () => {
       description: "Register prepared food and update inventory",
       icon: ClipboardList,
       path: "/prep",
-      color: "bg-success"
+      color: "bg-success",
+      allowedRoles: ['prep', 'manager', 'admin']
     },
     {
       id: "cook",
@@ -68,13 +118,14 @@ const Dashboard = () => {
       description: "Receive and manage live kitchen orders",
       icon: Utensils,
       path: "/cook",
-      color: "bg-warning"
+      color: "bg-warning",
+      allowedRoles: ['cook', 'manager', 'admin']
     }
   ];
 
-  if (!userData) {
-    return <div>Loading...</div>;
-  }
+  const availableRoles = roles.filter(role => 
+    role.allowedRoles.includes(profile?.role || 'server')
+  );
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -85,14 +136,18 @@ const Dashboard = () => {
             <div className="flex items-center space-x-3">
               <ChefHat className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">{userData.restaurant}</h1>
-                <p className="text-sm text-muted-foreground">{userData.location}</p>
+                <h1 className="text-2xl font-bold">
+                  {profile?.first_name} {profile?.last_name}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {profile?.role} • #{profile?.employee_number}
+                </p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
               <Badge variant="outline" className="px-3 py-1">
-                {userData.email}
+                {user?.email}
               </Badge>
               <Button variant="ghost" size="icon">
                 <Settings className="h-5 w-5" />
@@ -108,21 +163,30 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* Announcements */}
-        <Card className="mb-8 bg-gradient-primary text-white">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-2">📢 Daily Announcement</h3>
-            <p>New seasonal menu items available. Remember to check inventory levels before prep. Great job on yesterday's efficiency metrics!</p>
-          </CardContent>
-        </Card>
+        {/* Session Status */}
+        {currentSession && (
+          <Card className="mb-8 bg-gradient-primary text-white">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-2">
+                📅 Daily Session Active
+              </h3>
+              <p>
+                Session started at {new Date(currentSession.started_at).toLocaleTimeString()}
+                {!currentSession.is_active && ' (Ended)'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Role Selection */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">Select Your Station</h2>
-          <p className="text-muted-foreground mb-8">Choose your role to access the appropriate tools and interface</p>
+          <p className="text-muted-foreground mb-8">
+            Choose your role to access the appropriate tools and interface
+          </p>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {roles.map((role) => (
+            {availableRoles.map((role) => (
               <Link key={role.id} to={role.path}>
                 <Card className="hover:shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer group">
                   <CardHeader className="text-center pb-4">
@@ -147,7 +211,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Orders Today</p>
-                  <p className="text-2xl font-bold">127</p>
+                  <p className="text-2xl font-bold">{stats.ordersToday}</p>
                 </div>
                 <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center">
                   <Utensils className="h-6 w-6 text-success" />
@@ -161,7 +225,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Active Staff</p>
-                  <p className="text-2xl font-bold">8</p>
+                  <p className="text-2xl font-bold">{stats.activeStaff}</p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
                   <Users className="h-6 w-6 text-primary" />
@@ -175,7 +239,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Prep Items Ready</p>
-                  <p className="text-2xl font-bold">23</p>
+                  <p className="text-2xl font-bold">{stats.prepItemsReady}</p>
                 </div>
                 <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
                   <ClipboardList className="h-6 w-6 text-warning" />
