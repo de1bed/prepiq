@@ -27,8 +27,10 @@ import { useInventoryData } from "@/hooks/useInventoryData";
 import { usePrepAvailabilityData } from "@/hooks/usePrepAvailabilityData";
 import { useRecipesMap } from "@/hooks/useRecipesMap";
 import { useEmployeeStatuses } from "@/hooks/useEmployeeStatuses";
-import { InventoryAdjustButton } from "@/components/management/InventoryAdjustButton";
 import { SessionControl } from "@/components/management/SessionControl";
+import { SessionMenuManager } from "@/components/management/SessionMenuManager";
+import { RecipeManager } from "@/components/RecipeManager";
+import { PrepTasksManager } from "@/components/management/PrepTasksManager";
 
 const Management = () => {
   const [selectedTab, setSelectedTab] = useState("inventory");
@@ -174,12 +176,14 @@ const Management = () => {
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-5 md:grid-cols-7">
+          <TabsList className="grid w-full grid-cols-7 md:grid-cols-9">
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="menu">Menu</TabsTrigger>
+            <TabsTrigger value="recipes">Recipes</TabsTrigger>
             <TabsTrigger value="prep">Prep Available</TabsTrigger>
+            <TabsTrigger value="prep-lists">Prep Lists</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="staff">Staff Status</TabsTrigger>
-            <TabsTrigger value="prep-lists">Prep Lists</TabsTrigger>
             <TabsTrigger value="forecast">Forecast</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -238,6 +242,16 @@ const Management = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Menu Tab */}
+          <TabsContent value="menu" className="space-y-6">
+            <SessionMenuManager />
+          </TabsContent>
+
+          {/* Recipes Tab */}
+          <TabsContent value="recipes" className="space-y-6">
+            <RecipeManager canEdit />
           </TabsContent>
 
           {/* Prep Availability Tab */}
@@ -364,19 +378,7 @@ const Management = () => {
 
           {/* Prep Lists Tab */}
           <TabsContent value="prep-lists" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5" />
-                  <span>Daily Prep Lists</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  Próximamente: gestión de listas de preparación conectada a recetas y prep logs.
-                </div>
-              </CardContent>
-            </Card>
+            <PrepTasksManager />
           </TabsContent>
 
           {/* Forecast Tab */}

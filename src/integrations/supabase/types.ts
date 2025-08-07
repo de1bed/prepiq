@@ -371,6 +371,54 @@ export type Database = {
           },
         ]
       }
+      prep_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          quantity_batches: number
+          recipe_id: string
+          restaurant_id: string
+          session_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          quantity_batches?: number
+          recipe_id: string
+          restaurant_id: string
+          session_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          quantity_batches?: number
+          recipe_id?: string
+          restaurant_id?: string
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -506,6 +554,7 @@ export type Database = {
           is_active: boolean
           name: string
           prep_time_minutes: number | null
+          price: number
           recipe_type: string
           restaurant_id: string
           stations: Database["public"]["Enums"]["station_type"][]
@@ -521,6 +570,7 @@ export type Database = {
           is_active?: boolean
           name: string
           prep_time_minutes?: number | null
+          price?: number
           recipe_type?: string
           restaurant_id: string
           stations?: Database["public"]["Enums"]["station_type"][]
@@ -536,6 +586,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           prep_time_minutes?: number | null
+          price?: number
           recipe_type?: string
           restaurant_id?: string
           stations?: Database["public"]["Enums"]["station_type"][]
@@ -574,6 +625,39 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      session_menu: {
+        Row: {
+          created_at: string
+          id: string
+          is_available: boolean
+          price_override: number | null
+          recipe_id: string
+          restaurant_id: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          price_override?: number | null
+          recipe_id: string
+          restaurant_id: string
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          price_override?: number | null
+          recipe_id?: string
+          restaurant_id?: string
+          session_id?: string
           updated_at?: string
         }
         Relationships: []

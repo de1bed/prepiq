@@ -54,11 +54,35 @@ export function useRealtime() {
         {
           event: '*',
           schema: 'public',
-          table: 'clock_logs'
+          table: 'order_items'
         },
         (payload) => {
-          console.log('Clock log change:', payload);
-          window.dispatchEvent(new CustomEvent('clock_updated', { detail: payload }));
+          console.log('Order item change:', payload);
+          window.dispatchEvent(new CustomEvent('orders_updated', { detail: payload }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'session_menu'
+        },
+        (payload) => {
+          console.log('Session menu change:', payload);
+          window.dispatchEvent(new CustomEvent('menu_updated', { detail: payload }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'prep_tasks'
+        },
+        (payload) => {
+          console.log('Prep tasks change:', payload);
+          window.dispatchEvent(new CustomEvent('prep_tasks_updated', { detail: payload }));
         }
       )
       .subscribe();

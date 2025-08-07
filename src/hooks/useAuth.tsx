@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface RestaurantProfile {
+  id: string;
   restaurant_id: string;
 }
 

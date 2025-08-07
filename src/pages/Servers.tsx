@@ -1,113 +1,127 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  ArrowLeft,
-  Plus,
-  Minus,
-  Send,
-  Users,
-  Clock,
-  AlertCircle
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
+import { useActiveSession } from "@/hooks/useActiveSession";
+import { useAuth } from "@/hooks/useAuth";
+import { useSessionMenu } from "@/hooks/useSessionMenu";
+import { supabase } from "@/integrations/supabase/client";
+import { ArrowLeft, Plus, Minus, Send, AlertCircle } from "lucide-react";
 
-interface OrderItem {
-  id: number;
+interface OrderLineDraft {
+  recipe_id: string;
   name: string;
   price: number;
   quantity: number;
   modifiers: string[];
-  specialInstructions: string;
 }
 
 const Servers = () => {
-  const [currentOrder, setCurrentOrder] = useState<OrderItem[]>([]);
+  const { session } = useActiveSession();
+  const { profile } = useAuth();
+  const { data, isLoading } = useSessionMenu();
+  const { toast } = useToast();
+
+  const [currentOrder, setCurrentOrder] = useState<OrderLineDraft[]>([]);
   const [tableNumber, setTableNumber] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
 
-  const menuItems = [
-    { id: 1, name: "Grilled Salmon", price: 28, category: "Mains", available: true },
-    { id: 2, name: "Chicken Caesar Salad", price: 18, category: "Salads", available: true },
-    { id: 3, name: "Beef Bourguignon", price: 32, category: "Mains", available: false },
-    { id: 4, name: "Vegetarian Pasta", price: 22, category: "Mains", available: true },
-    { id: 5, name: "Fish & Chips", price: 24, category: "Mains", available: true },
-    { id: 6, name: "Garden Salad", price: 14, category: "Salads", available: true }
-  ];
-
-  const modifierOptions = {
-    "Grilled Salmon": ["No sauce", "Extra vegetables", "Gluten-free", "Medium rare", "Well done"],
-    "Chicken Caesar Salad": ["No croutons", "Dressing on side", "Extra chicken", "No parmesan", "Add avocado"],
-    "Vegetarian Pasta": ["Extra vegetables", "No cheese", "Spicy", "Gluten-free pasta"],
-    "Fish & Chips": ["No tartar sauce", "Extra crispy", "Mushy peas", "Lemon wedge"],
-    "Garden Salad": ["No onions", "Dressing on side", "Add protein", "Extra vegetables"]
-  };
-
-  const addToOrder = (item: any) => {
-    const existing = currentOrder.find(orderItem => orderItem.id === item.id);
-    if (existing) {
-      setCurrentOrder(order => 
-        order.map(orderItem => 
-          orderItem.id === item.id 
-            ? { ...orderItem, quantity: orderItem.quantity + 1 }
-            : orderItem
-        )
-      );
-    } else {
-      setCurrentOrder(order => [...order, {
-        ...item,
-        quantity: 1,
-        modifiers: [],
-        specialInstructions: ""
-      }]);
+  const menuItems = useMemo(() => {
+    const result: { id: string; name: string; price: number; available: boolean }[] = [];
+    if (!data) return result;
+    for (const [id, r] of data.recipesById.entries()) {
+      const entry = data.entries.find(e => e.recipe_id === id);
+      if (!entry) continue; // only items added to session menu
+      result.push({
+        id,
+        name: r.name,
+        price: (entry.price_override ?? r.price ?? 0) as number,
+        available: entry.is_available,
+      });
     }
-  };
+    return result;
+  }, [data]);
 
-  const removeFromOrder = (itemId: number) => {
-    setCurrentOrder(order => {
-      const existing = order.find(item => item.id === itemId);
-      if (existing && existing.quantity > 1) {
-        return order.map(item => 
-          item.id === itemId 
-            ? { ...item, quantity: item.quantity - 1 }
-            : item
-        );
-      }
-      return order.filter(item => item.id !== itemId);
+  const addToOrder = (item: { id: string; name: string; price: number }) => {
+    setCurrentOrder(prev => {
+      const existing = prev.find(l => l.recipe_id === item.id);
+      if (existing) return prev.map(l => l.recipe_id === item.id ? { ...l, quantity: l.quantity + 1 } : l);
+      return [...prev, { recipe_id: item.id, name: item.name, price: item.price, quantity: 1, modifiers: [] }];
     });
   };
 
-  const updateModifiers = (itemId: number, modifier: string, checked: boolean) => {
-    setCurrentOrder(order => 
-      order.map(item => {
-        if (item.id === itemId) {
-          const modifiers = checked 
-            ? [...item.modifiers, modifier]
-            : item.modifiers.filter(m => m !== modifier);
-          return { ...item, modifiers };
-        }
-        return item;
-      })
-    );
+  const removeFromOrder = (recipeId: string) => {
+    setCurrentOrder(prev => {
+      const existing = prev.find(l => l.recipe_id === recipeId);
+      if (!existing) return prev;
+      if (existing.quantity > 1) return prev.map(l => l.recipe_id === recipeId ? { ...l, quantity: l.quantity - 1 } : l);
+      return prev.filter(l => l.recipe_id !== recipeId);
+    });
   };
 
-  const sendToKitchen = () => {
+  const getTotalPrice = () => currentOrder.reduce((t, l) => t + l.price * l.quantity, 0).toFixed(2);
+
+  const getNextOrderNumber = async (): Promise<number> => {
+    if (!profile?.restaurant_id || !session?.id) return 1;
+    const { data: rows, error } = await supabase
+      .from("orders")
+      .select("order_number")
+      .eq("restaurant_id", profile.restaurant_id)
+      .eq("session_id", session.id)
+      .order("order_number", { ascending: false })
+      .limit(1);
+    if (error) return 1;
+    return (rows?.[0]?.order_number ?? 0) + 1;
+  };
+
+  const sendToKitchen = async () => {
+    if (!profile?.restaurant_id || !session?.id) {
+      toast({ title: "Sin sesión", description: "Inicia una sesión activa.", variant: "destructive" });
+      return;
+    }
     if (currentOrder.length === 0) return;
-    
-    // Mock sending order to kitchen
-    alert(`Order sent to kitchen!\nTable: ${tableNumber}\nItems: ${currentOrder.length}\nTotal: $${getTotalPrice()}`);
-    
-    // Reset order
-    setCurrentOrder([]);
-    setTableNumber("");
-    setSpecialInstructions("");
-  };
 
-  const getTotalPrice = () => {
-    return currentOrder.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2);
+    try {
+      const orderNumber = await getNextOrderNumber();
+      const { data: order, error: e1 } = await supabase
+        .from("orders")
+        .insert({
+          restaurant_id: profile.restaurant_id,
+          session_id: session.id,
+          order_number: orderNumber,
+          table_number: tableNumber || null,
+          server_id: profile.id,
+          status: 'pending',
+          stations: '{}',
+          special_instructions: specialInstructions || null,
+        } as any)
+        .select()
+        .single();
+      if (e1) throw e1;
+
+      const items = currentOrder.map(l => ({
+        order_id: order.id,
+        recipe_id: l.recipe_id,
+        quantity: l.quantity,
+        modifications: l.modifiers,
+        station_assignments: '{}',
+      }));
+      const { error: e2 } = await supabase.from("order_items").insert(items as any);
+      if (e2) throw e2;
+
+      toast({ title: "Orden enviada" });
+      setCurrentOrder([]);
+      setTableNumber("");
+      setSpecialInstructions("");
+      window.dispatchEvent(new CustomEvent('orders_updated'));
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -128,7 +142,7 @@ const Servers = () => {
               </div>
             </div>
             <Badge variant="outline" className="bg-gradient-secondary text-white">
-              Server View
+              {session ? `Sesión: ${session.session_date}` : 'Sin sesión activa'}
             </Badge>
           </div>
         </div>
@@ -143,32 +157,38 @@ const Servers = () => {
                 <CardTitle>Menu Items</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {menuItems.map((item) => (
-                    <div key={item.id} className={`p-4 border rounded-lg ${!item.available ? 'opacity-50' : ''}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold">{item.name}</h3>
-                        <span className="text-lg font-bold">${item.price}</span>
-                      </div>
-                      <Badge variant="outline" className="mb-3">{item.category}</Badge>
-                      {!item.available ? (
-                        <div className="flex items-center text-destructive text-sm">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          86'd (Not Available)
+                {isLoading ? (
+                  <div className="text-muted-foreground">Cargando menú...</div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {menuItems.map((item) => (
+                      <div key={item.id} className={`p-4 border rounded-lg ${!item.available ? 'opacity-50' : ''}`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-semibold">{item.name}</h3>
+                          <span className="text-lg font-bold">${item.price.toFixed(2)}</span>
                         </div>
-                      ) : (
-                        <Button 
-                          onClick={() => addToOrder(item)}
-                          size="sm"
-                          className="w-full"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add to Order
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        {!item.available ? (
+                          <div className="flex items-center text-destructive text-sm">
+                            <AlertCircle className="h-4 w-4 mr-1" />
+                            86'd (Not Available)
+                          </div>
+                        ) : (
+                          <Button 
+                            onClick={() => addToOrder(item)}
+                            size="sm"
+                            className="w-full"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add to Order
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {menuItems.length === 0 && (
+                      <div className="text-muted-foreground">No hay elementos en el menú de esta sesión.</div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -177,22 +197,18 @@ const Servers = () => {
           <div>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="h-5 w-5 mr-2" />
-                  Current Order
-                </CardTitle>
+                <CardTitle>Current Order</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {/* Table Number */}
                   <div>
                     <label className="text-sm font-medium mb-2 block">Table Number</label>
-                    <input
+                    <Input
                       type="text"
                       value={tableNumber}
                       onChange={(e) => setTableNumber(e.target.value)}
                       placeholder="Table 12"
-                      className="w-full p-2 border rounded-md"
                     />
                   </div>
 
@@ -202,50 +218,21 @@ const Servers = () => {
                   ) : (
                     <div className="space-y-4 max-h-64 overflow-y-auto">
                       {currentOrder.map((item) => (
-                        <div key={`${item.id}-${Math.random()}`} className="border rounded-lg p-3">
+                        <div key={item.recipe_id} className="border rounded-lg p-3">
                           <div className="flex justify-between items-start mb-2">
                             <h4 className="font-medium">{item.name}</h4>
                             <div className="flex items-center space-x-2">
-                              <Button 
-                                size="icon" 
-                                variant="outline" 
-                                className="h-6 w-6"
-                                onClick={() => removeFromOrder(item.id)}
-                              >
+                              <Button size="icon" variant="outline" className="h-6 w-6"
+                                onClick={() => removeFromOrder(item.recipe_id)}>
                                 <Minus className="h-3 w-3" />
                               </Button>
                               <span className="w-8 text-center">{item.quantity}</span>
-                              <Button 
-                                size="icon" 
-                                variant="outline" 
-                                className="h-6 w-6"
-                                onClick={() => addToOrder(item)}
-                              >
+                              <Button size="icon" variant="outline" className="h-6 w-6"
+                                onClick={() => addToOrder({ id: item.recipe_id, name: item.name, price: item.price })}>
                                 <Plus className="h-3 w-3" />
                               </Button>
                             </div>
                           </div>
-
-                          {/* Modifiers */}
-                          {modifierOptions[item.name as keyof typeof modifierOptions] && (
-                            <div className="mb-2">
-                              <p className="text-xs font-medium mb-1">Modifiers:</p>
-                              <div className="grid grid-cols-1 gap-1 text-xs">
-                                {modifierOptions[item.name as keyof typeof modifierOptions].map((modifier) => (
-                                  <label key={modifier} className="flex items-center space-x-1">
-                                    <Checkbox
-                                      checked={item.modifiers.includes(modifier)}
-                                      onCheckedChange={(checked) => 
-                                        updateModifiers(item.id, modifier, checked as boolean)
-                                      }
-                                    />
-                                    <span>{modifier}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
                           <p className="text-sm font-medium">${(item.price * item.quantity).toFixed(2)}</p>
                         </div>
                       ))}
@@ -270,36 +257,12 @@ const Servers = () => {
                         <span className="font-semibold">Total:</span>
                         <span className="text-xl font-bold">${getTotalPrice()}</span>
                       </div>
-                      <Button 
-                        onClick={sendToKitchen} 
-                        className="w-full"
-                        disabled={!tableNumber.trim()}
-                      >
+                      <Button onClick={sendToKitchen} className="w-full" disabled={!tableNumber.trim() || !session}>
                         <Send className="h-4 w-4 mr-2" />
                         Send to Kitchen
                       </Button>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Stats */}
-            <Card className="mt-6">
-              <CardContent className="p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Orders Today:</span>
-                    <span className="font-medium">127</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Your Orders:</span>
-                    <span className="font-medium">23</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Avg Order Time:</span>
-                    <span className="font-medium">12 min</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>

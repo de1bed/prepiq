@@ -25,6 +25,7 @@ interface Recipe {
   prep_time_minutes: number;
   cook_time_minutes: number;
   is_active: boolean;
+  price: number;
   recipe_ingredients: {
     ingredient_name: string;
     quantity: number;
@@ -64,7 +65,7 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // Form state
+// Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -73,7 +74,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
     stations: [] as ('grill' | 'fry' | 'salads' | 'broiler' | 'prep')[],
     batch_size: 1,
     prep_time_minutes: 0,
-    cook_time_minutes: 0
+    cook_time_minutes: 0,
+    price: 0,
   });
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
 
@@ -130,7 +132,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
             stations: formData.stations as any,
             batch_size: formData.batch_size,
             prep_time_minutes: formData.prep_time_minutes,
-            cook_time_minutes: formData.cook_time_minutes
+            cook_time_minutes: formData.cook_time_minutes,
+            price: formData.price,
           })
           .eq('id', selectedRecipe.id);
 
@@ -156,7 +159,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
             stations: formData.stations as any,
             batch_size: formData.batch_size,
             prep_time_minutes: formData.prep_time_minutes,
-            cook_time_minutes: formData.cook_time_minutes
+            cook_time_minutes: formData.cook_time_minutes,
+            price: formData.price,
           })
           .select()
           .single();
@@ -209,7 +213,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       stations: recipe.stations as any,
       batch_size: recipe.batch_size,
       prep_time_minutes: recipe.prep_time_minutes || 0,
-      cook_time_minutes: recipe.cook_time_minutes || 0
+      cook_time_minutes: recipe.cook_time_minutes || 0,
+      price: recipe.price || 0,
     });
     setIngredients(recipe.recipe_ingredients || []);
     setIsDialogOpen(true);
@@ -266,7 +271,8 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
       stations: [],
       batch_size: 1,
       prep_time_minutes: 0,
-      cook_time_minutes: 0
+      cook_time_minutes: 0,
+      price: 0,
     });
     setIngredients([]);
   };
@@ -397,6 +403,18 @@ export function RecipeManager({ canEdit = false }: { canEdit?: boolean }) {
                       min="0"
                       value={formData.cook_time_minutes}
                       onChange={(e) => setFormData({ ...formData, cook_time_minutes: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="price">Price</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                 </div>
