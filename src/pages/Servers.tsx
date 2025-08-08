@@ -85,6 +85,13 @@ const Servers = () => {
     }
     if (currentOrder.length === 0) return;
 
+    // Derive station assignments from recipes in the session menu
+    const getRecipeStations = (id: string) =>
+      ((data?.recipesById?.get(id)?.stations as string[] | undefined) ?? []);
+    const orderStations = Array.from(
+      new Set(currentOrder.flatMap((l) => getRecipeStations(l.recipe_id)))
+    );
+
     try {
       const orderNumber = await getNextOrderNumber();
       const { data: order, error: e1 } = await supabase
@@ -96,7 +103,7 @@ const Servers = () => {
           table_number: tableNumber || null,
           server_id: profile.id,
           status: 'pending',
-          stations: '{}',
+          stations: orderStations as any,
           special_instructions: specialInstructions || null,
         } as any)
         .select()
@@ -108,7 +115,7 @@ const Servers = () => {
         recipe_id: l.recipe_id,
         quantity: l.quantity,
         modifications: l.modifiers,
-        station_assignments: '{}',
+        station_assignments: getRecipeStations(l.recipe_id) as any,
       }));
       const { error: e2 } = await supabase.from("order_items").insert(items as any);
       if (e2) throw e2;
@@ -123,7 +130,6 @@ const Servers = () => {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
   };
-
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}

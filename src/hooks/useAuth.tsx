@@ -23,33 +23,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<RestaurantProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Ensure the current user has a profile row so RLS helpers work
+  const ensureProfile = async (userId: string) => {
+    try {
+      const { data: rows } = await supabase
+        .from('profiles')
+        .select('id, user_id')
+        .eq('user_id', userId)
+        .limit(1);
+      if (!rows || rows.length === 0) {
+        await supabase.from('profiles').insert({
+          user_id: userId,
+          employee_number: userId.substring(0, 8),
+          first_name: 'Admin',
+          last_name: 'User',
+          role: 'admin',
+          restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e',
+          is_active: true,
+        } as any);
+      }
+    } catch (e) {
+      console.warn('ensureProfile failed', e);
+    }
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // Set mock profile for restaurant access
+
       if (session?.user) {
+        // Bootstrap profile in DB (deferred) and set client profile
+        setTimeout(() => ensureProfile(session.user!.id), 0);
         setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
       }
-      
+
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Set mock profile for restaurant access
+
         if (session?.user) {
+          // Defer supabase calls inside auth callback to avoid deadlocks
+          setTimeout(() => ensureProfile(session.user!.id), 0);
           setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
         } else {
           setProfile(null);
         }
-        
+
         setLoading(false);
       }
     );

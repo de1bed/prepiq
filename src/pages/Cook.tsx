@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActiveSession } from "@/hooks/useActiveSession";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,10 +24,19 @@ interface KitchenOrder {
   items: KitchenOrderItem[];
 }
 
+const STATIONS = [
+  { value: 'grill', label: 'Grill' },
+  { value: 'fry', label: 'Fryer' },
+  { value: 'salads', label: 'Salads' },
+  { value: 'broiler', label: 'Broiler' },
+  { value: 'prep', label: 'Prep' },
+];
+
 const Cook = () => {
   const { profile } = useAuth();
   const { session } = useActiveSession();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [station, setStation] = useState<string>('grill');
 
   const load = async () => {
     if (!profile?.restaurant_id || !session?.id) { setOrders([]); return; }
@@ -41,35 +51,45 @@ const Cook = () => {
     if (ids.length === 0) { setOrders([]); return; }
     const { data: itemRows, error: e2 } = await supabase
       .from('order_items')
-      .select('order_id, recipe_id, quantity, modifications')
+      .select('order_id, recipe_id, quantity, modifications, station_assignments')
       .in('order_id', ids);
     if (e2) return;
     const { data: recipes, error: e3 } = await supabase
       .from('recipes')
-      .select('id, name')
+      .select('id, name, stations')
       .eq('restaurant_id', profile.restaurant_id);
     if (e3) return;
     const recipesById = new Map<string, any>();
     for (const r of recipes ?? []) recipesById.set(r.id, r);
 
-    const grouped: KitchenOrder[] = (orderRows ?? []).map((o) => ({
-      id: o.id,
-      table_number: o.table_number,
-      ordered_at: o.ordered_at,
-      status: o.status,
-      items: (itemRows ?? [])
-        .filter(i => i.order_id === o.id)
-        .map(i => ({
+    const grouped: KitchenOrder[] = [];
+    for (const o of (orderRows ?? [])) {
+      const items: KitchenOrderItem[] = [];
+      for (const i of (itemRows ?? []).filter(ir => ir.order_id === o.id)) {
+        const assigned: string[] = (i as any).station_assignments ?? [];
+        const stations: string[] = assigned.length > 0 ? assigned : (recipesById.get(i.recipe_id)?.stations ?? []);
+        if (!stations.includes(station)) continue;
+        items.push({
           recipe_id: i.recipe_id,
           name: recipesById.get(i.recipe_id)?.name ?? i.recipe_id,
           quantity: i.quantity,
           modifiers: (i.modifications as any[]) || [],
-        }))
-    }));
+        });
+      }
+      if (items.length > 0) {
+        grouped.push({
+          id: o.id,
+          table_number: o.table_number,
+          ordered_at: o.ordered_at,
+          status: o.status,
+          items,
+        });
+      }
+    }
     setOrders(grouped);
   };
 
-  useEffect(() => { load(); }, [profile?.restaurant_id, session?.id]);
+  useEffect(() => { load(); }, [profile?.restaurant_id, session?.id, station]);
   useEffect(() => {
     const h = () => load();
     window.addEventListener('orders_updated', h as EventListener);
@@ -106,6 +126,18 @@ const Cook = () => {
                 <h1 className="text-2xl font-bold text-white">Cook Station</h1>
                 <p className="text-white/70">Live Orders</p>
               </div>
+            </div>
+            <div>
+              <Select value={station} onValueChange={setStation}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Select station" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATIONS.map(s => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
