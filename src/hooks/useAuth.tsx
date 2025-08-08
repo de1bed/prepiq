@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Set mock profile for restaurant access
       if (session?.user) {
-        setProfile({ restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
+        setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
       }
       
       setLoading(false);
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Set mock profile for restaurant access
         if (session?.user) {
-          setProfile({ restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
+          setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
         } else {
           setProfile(null);
         }

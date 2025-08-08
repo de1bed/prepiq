@@ -31,6 +31,7 @@ import { SessionControl } from "@/components/management/SessionControl";
 import { SessionMenuManager } from "@/components/management/SessionMenuManager";
 import { RecipeManager } from "@/components/RecipeManager";
 import { PrepTasksManager } from "@/components/management/PrepTasksManager";
+import { InventoryAdjustButton } from "@/components/management/InventoryAdjustButton";
 
 const Management = () => {
   const [selectedTab, setSelectedTab] = useState("inventory");
