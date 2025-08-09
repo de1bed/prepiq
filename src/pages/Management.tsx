@@ -32,6 +32,7 @@ import { SessionMenuManager } from "@/components/management/SessionMenuManager";
 import { RecipeManager } from "@/components/RecipeManager";
 import { PrepTasksManager } from "@/components/management/PrepTasksManager";
 import { InventoryAdjustButton } from "@/components/management/InventoryAdjustButton";
+import { InventoryAddButton } from "@/components/management/InventoryAddButton";
 
 const Management = () => {
   const [selectedTab, setSelectedTab] = useState("inventory");
@@ -57,8 +58,15 @@ const Management = () => {
     performanceScore: 92
   };
 
-  const getInventoryStatus = (qty: number, min: number | null) => {
+  const getInventoryStatus = (
+    qty: number,
+    min: number | null,
+    urgent: number | null,
+    excess: number | null
+  ) => {
+    if (excess !== null && qty >= excess) return "excess";
     if (qty <= 0) return "critical";
+    if (urgent !== null && qty <= urgent) return "urgent";
     if (min !== null && qty <= min) return "low";
     return "normal";
   };

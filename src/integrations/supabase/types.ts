@@ -108,32 +108,38 @@ export type Database = {
         Row: {
           created_at: string
           current_quantity: number
+          excess_threshold: number | null
           id: string
           ingredient_name: string
           last_updated_at: string
           min_threshold: number | null
           restaurant_id: string
           unit: string
+          urgent_threshold: number | null
         }
         Insert: {
           created_at?: string
           current_quantity?: number
+          excess_threshold?: number | null
           id?: string
           ingredient_name: string
           last_updated_at?: string
           min_threshold?: number | null
           restaurant_id: string
           unit: string
+          urgent_threshold?: number | null
         }
         Update: {
           created_at?: string
           current_quantity?: number
+          excess_threshold?: number | null
           id?: string
           ingredient_name?: string
           last_updated_at?: string
           min_threshold?: number | null
           restaurant_id?: string
           unit?: string
+          urgent_threshold?: number | null
         }
         Relationships: [
           {
@@ -638,6 +644,7 @@ export type Database = {
           recipe_id: string
           restaurant_id: string
           session_id: string
+          stations: Database["public"]["Enums"]["station_type"][]
           updated_at: string
         }
         Insert: {
@@ -648,6 +655,7 @@ export type Database = {
           recipe_id: string
           restaurant_id: string
           session_id: string
+          stations?: Database["public"]["Enums"]["station_type"][]
           updated_at?: string
         }
         Update: {
@@ -658,6 +666,7 @@ export type Database = {
           recipe_id?: string
           restaurant_id?: string
           session_id?: string
+          stations?: Database["public"]["Enums"]["station_type"][]
           updated_at?: string
         }
         Relationships: []
