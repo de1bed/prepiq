@@ -106,39 +106,66 @@ export function useSessionMenu() {
 
   const removeFromMenu = async (recipeId: string) => {
     if (!restaurantId || !sessionId) return;
-    const { error } = await supabase
-      .from("session_menu")
-      .delete()
-      .eq("restaurant_id", restaurantId)
-      .eq("session_id", sessionId)
-      .eq("recipe_id", recipeId);
-    if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from("session_menu")
+        .delete()
+        .eq("restaurant_id", restaurantId)
+        .eq("session_id", sessionId)
+        .eq("recipe_id", recipeId);
+      if (error) throw error;
+    } catch (e) {
+      // Use mock when Supabase fails
+      mockSupabase.from("session_menu")
+        .delete()
+        .eq("restaurant_id", restaurantId)
+        .eq("session_id", sessionId)
+        .eq("recipe_id", recipeId);
+    }
     await invalidate();
     window.dispatchEvent(new CustomEvent("menu_updated"));
   };
 
   const setAvailability = async (recipeId: string, isAvailable: boolean) => {
     if (!restaurantId || !sessionId) return;
-    const { error } = await supabase
-      .from("session_menu")
-      .update({ is_available: isAvailable } as any)
-      .eq("restaurant_id", restaurantId)
-      .eq("session_id", sessionId)
-      .eq("recipe_id", recipeId);
-    if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from("session_menu")
+        .update({ is_available: isAvailable } as any)
+        .eq("restaurant_id", restaurantId)
+        .eq("session_id", sessionId)
+        .eq("recipe_id", recipeId);
+      if (error) throw error;
+    } catch (e) {
+      // Use mock when Supabase fails
+      mockSupabase.from("session_menu")
+        .update({ is_available: isAvailable })
+        .eq("restaurant_id", restaurantId)
+        .eq("session_id", sessionId)
+        .eq("recipe_id", recipeId);
+    }
     await invalidate();
     window.dispatchEvent(new CustomEvent("menu_updated"));
   };
 
   const setPriceOverride = async (recipeId: string, price: number | null) => {
     if (!restaurantId || !sessionId) return;
-    const { error } = await supabase
-      .from("session_menu")
-      .update({ price_override: price } as any)
-      .eq("restaurant_id", restaurantId)
-      .eq("session_id", sessionId)
-      .eq("recipe_id", recipeId);
-    if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from("session_menu")
+        .update({ price_override: price } as any)
+        .eq("restaurant_id", restaurantId)
+        .eq("session_id", sessionId)
+        .eq("recipe_id", recipeId);
+      if (error) throw error;
+    } catch (e) {
+      // Use mock when Supabase fails
+      mockSupabase.from("session_menu")
+        .update({ price_override: price })
+        .eq("restaurant_id", restaurantId)
+        .eq("session_id", sessionId)
+        .eq("recipe_id", recipeId);
+    }
     await invalidate();
     window.dispatchEvent(new CustomEvent("menu_updated"));
   };

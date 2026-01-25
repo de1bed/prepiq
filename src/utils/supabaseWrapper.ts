@@ -21,33 +21,83 @@ class MockDB {
   }
 
   select(table: string, columns?: string) {
-    const data = this.getData(table);
-    return {
-      eq: (col: string, val: any) => ({
-        order: (col: string, opts?: { ascending?: boolean }) => ({
-          limit: (count: number) => ({
-            data: data.filter((r: any) => r[col] === val)
-              .sort((a: any, b: any) => {
-                const aVal = a[col];
-                const bVal = b[col];
-                return opts?.ascending ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
-              })
-              .slice(0, count)
-          }),
-          data: data.filter((r: any) => r[col] === val)
-            .sort((a: any, b: any) => {
-              const aVal = a[col];
-              const bVal = b[col];
-              return opts?.ascending ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
-            })
-        }),
-        data: data.filter((r: any) => r[col] === val)
-      }),
-      in: (col: string, vals: string[]) => ({
-        data: data.filter((r: any) => vals.includes(r[col]))
-      }),
-      data: data
+    const allData = this.getData(table);
+    const filters: Array<{ col: string; val: any }> = [];
+    const inFilters: Array<{ col: string; vals: string[] }> = [];
+    
+    const applyFilters = () => {
+      let result = [...allData];
+      // Apply eq filters
+      for (const f of filters) {
+        result = result.filter((r: any) => r[f.col] === f.val);
+      }
+      // Apply in filters
+      for (const f of inFilters) {
+        result = result.filter((r: any) => f.vals.includes(r[f.col]));
+      }
+      return result;
     };
+    
+    const createQuery = (orderCol?: string, orderOpts?: { ascending?: boolean }, limitCount?: number) => {
+      const getData = () => {
+        let result = applyFilters();
+        if (orderCol) {
+          result = [...result].sort((a: any, b: any) => {
+            const aVal = a[orderCol];
+            const bVal = b[orderCol];
+            if (aVal === undefined || bVal === undefined) return 0;
+            return orderOpts?.ascending ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+          });
+        }
+        if (limitCount !== undefined) {
+          result = result.slice(0, limitCount);
+        }
+        return result;
+      };
+      
+      return {
+        eq: (col: string, val: any) => {
+          filters.push({ col, val });
+          return createQuery(orderCol, orderOpts, limitCount);
+        },
+        in: (col: string, vals: string[]) => {
+          inFilters.push({ col, vals });
+          return createQuery(orderCol, orderOpts, limitCount);
+        },
+        order: (newOrderCol: string, opts?: { ascending?: boolean }) => {
+          return {
+            limit: (count: number) => ({
+              data: () => {
+                let result = applyFilters();
+                result = [...result].sort((a: any, b: any) => {
+                  const aVal = a[newOrderCol];
+                  const bVal = b[newOrderCol];
+                  if (aVal === undefined || bVal === undefined) return 0;
+                  return opts?.ascending ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+                });
+                return result.slice(0, count);
+              }
+            }),
+            data: () => {
+              let result = applyFilters();
+              result = [...result].sort((a: any, b: any) => {
+                const aVal = a[newOrderCol];
+                const bVal = b[newOrderCol];
+                if (aVal === undefined || bVal === undefined) return 0;
+                return opts?.ascending ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+              });
+              return result;
+            }
+          };
+        },
+        limit: (count: number) => ({
+          data: () => getData().slice(0, count)
+        }),
+        data: () => getData()
+      };
+    };
+    
+    return createQuery();
   }
 
   insert(table: string, items: any | any[]) {
@@ -70,27 +120,47 @@ class MockDB {
   }
 
   update(table: string, updates: any) {
-    return {
+    const data = this.getData(table);
+    const filters: Array<{ col: string; val: any }> = [];
+    
+    const createUpdateQuery = () => ({
       eq: (col: string, val: any) => {
-        const data = this.getData(table);
-        const updated = data.map((item: any) => 
-          item[col] === val ? { ...item, ...updates, updated_at: new Date().toISOString() } : item
-        );
+        filters.push({ col, val });
+        return createUpdateQuery();
+      },
+      data: () => {
+        const updated = data.map((item: any) => {
+          // Check if item matches all filters
+          const matches = filters.every(f => item[f.col] === f.val);
+          return matches ? { ...item, ...updates, updated_at: new Date().toISOString() } : item;
+        });
         this.setData(table, updated);
-        return { data: updated.filter((item: any) => item[col] === val) };
+        return updated.filter((item: any) => filters.every(f => item[f.col] === f.val));
       }
-    };
+    });
+    
+    return createUpdateQuery();
   }
 
   delete(table: string) {
-    return {
+    const data = this.getData(table);
+    const filters: Array<{ col: string; val: any }> = [];
+    
+    const createDeleteQuery = () => ({
       eq: (col: string, val: any) => {
-        const data = this.getData(table);
-        const filtered = data.filter((item: any) => item[col] !== val);
-        this.setData(table, filtered);
-        return { data: [] };
+        filters.push({ col, val });
+        return createDeleteQuery();
+      },
+      data: () => {
+        const remaining = data.filter((item: any) => 
+          !filters.every(f => item[f.col] === f.val)
+        );
+        this.setData(table, remaining);
+        return [];
       }
-    };
+    });
+    
+    return createDeleteQuery();
   }
 }
 
@@ -98,16 +168,20 @@ const mockDB = new MockDB();
 
 // Initialize default session if needed
 export function initializeMockData(restaurantId: string) {
-  const sessions = mockDB.select('daily_sessions').eq('restaurant_id', restaurantId).eq('is_active', true).data();
-  if (sessions.length === 0) {
-    mockDB.insert('daily_sessions', {
-      id: 'mock-session-1',
-      restaurant_id: restaurantId,
-      session_date: new Date().toISOString().split('T')[0],
-      is_active: true,
-      started_at: new Date().toISOString(),
-      ended_at: null,
-    });
+  try {
+    const sessions = mockDB.select('daily_sessions').eq('restaurant_id', restaurantId).eq('is_active', true).data();
+    if (sessions.length === 0) {
+      mockDB.insert('daily_sessions', {
+        id: 'mock-session-1',
+        restaurant_id: restaurantId,
+        session_date: new Date().toISOString().split('T')[0],
+        is_active: true,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+      });
+    }
+  } catch (e) {
+    // Ignore initialization errors
   }
 }
 

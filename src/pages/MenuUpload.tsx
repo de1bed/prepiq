@@ -17,7 +17,8 @@ import {
   FileImage,
   FileText,
   Loader2,
-  X
+  X,
+  Plus
 } from "lucide-react";
 
 interface ExtractedDish {
