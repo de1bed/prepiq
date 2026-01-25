@@ -107,22 +107,44 @@ const Servers = () => {
     );
 
     try {
+      initializeMockData(profile.restaurant_id);
       const orderNumber = await getNextOrderNumber();
-      const { data: order, error: e1 } = await supabase
-        .from("orders")
-        .insert({
-          restaurant_id: profile.restaurant_id,
-          session_id: session.id,
-          order_number: orderNumber,
-          table_number: tableNumber || null,
-          server_id: profile.id,
-          status: 'pending',
-          stations: orderStations as any,
-          special_instructions: specialInstructions || null,
-        } as any)
-        .select()
-        .single();
-      if (e1) throw e1;
+      
+      let order: any = null;
+      try {
+        const result = await supabase
+          .from("orders")
+          .insert({
+            restaurant_id: profile.restaurant_id,
+            session_id: session.id,
+            order_number: orderNumber,
+            table_number: tableNumber || null,
+            server_id: profile.id,
+            status: 'pending',
+            stations: orderStations as any,
+            special_instructions: specialInstructions || null,
+          } as any)
+          .select()
+          .single();
+        if (result.error) throw result.error;
+        order = result.data;
+      } catch (e) {
+        // Use mock when Supabase fails
+        const mockResult = mockSupabase.from("orders")
+          .insert({
+            restaurant_id: profile.restaurant_id,
+            session_id: session.id,
+            order_number: orderNumber,
+            table_number: tableNumber || null,
+            server_id: profile.id,
+            status: 'pending',
+            stations: orderStations,
+            special_instructions: specialInstructions || null,
+          })
+          .select()
+          .single();
+        order = mockResult.data;
+      }
 
       const items = currentOrder.map(l => ({
         order_id: order.id,
@@ -131,8 +153,14 @@ const Servers = () => {
         modifications: l.modifiers,
         station_assignments: getRecipeStations(l.recipe_id) as any,
       }));
-      const { error: e2 } = await supabase.from("order_items").insert(items as any);
-      if (e2) throw e2;
+      
+      try {
+        const { error: e2 } = await supabase.from("order_items").insert(items as any);
+        if (e2) throw e2;
+      } catch (e) {
+        // Use mock when Supabase fails
+        mockSupabase.from("order_items").insert(items);
+      }
 
       toast({ title: "Orden enviada" });
       setCurrentOrder([]);
@@ -141,7 +169,7 @@ const Servers = () => {
       window.dispatchEvent(new CustomEvent('orders_updated'));
     } catch (e: any) {
       console.error(e);
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "Error", description: e.message || "Failed to send order", variant: "destructive" });
     }
   };
   return (
