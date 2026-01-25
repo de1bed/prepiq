@@ -1,88 +1,280 @@
-
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { AIAssistant } from "@/components/AIAssistant";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useActiveSession } from "@/hooks/useActiveSession";
+import { useEmployeeStatuses } from "@/hooks/useEmployeeStatuses";
+import { supabase } from "@/integrations/supabase/client";
+import { mockSupabase, initializeMockData } from "@/utils/supabaseWrapper";
 import { 
   ArrowLeft,
-  Package,
-  ChefHat,
+  Upload,
   Users,
-  CheckCircle,
-  TrendingUp,
-  Eye,
   Settings,
-  DollarSign,
-  Bell,
-  Award,
-  Thermometer
+  ChefHat,
+  Utensils,
+  CheckCircle,
+  X,
+  Plus
 } from "lucide-react";
-import { useRealtime } from "@/hooks/useRealtime";
-import { useActiveSession } from "@/hooks/useActiveSession";
-import { useInventoryData } from "@/hooks/useInventoryData";
-import { usePrepAvailabilityData } from "@/hooks/usePrepAvailabilityData";
-import { useRecipesMap } from "@/hooks/useRecipesMap";
-import { useEmployeeStatuses } from "@/hooks/useEmployeeStatuses";
-import { SessionControl } from "@/components/management/SessionControl";
-import { SessionMenuManager } from "@/components/management/SessionMenuManager";
-import { RecipeManager } from "@/components/RecipeManager";
-import { PrepTasksManager } from "@/components/management/PrepTasksManager";
-import { InventoryAdjustButton } from "@/components/management/InventoryAdjustButton";
-import { InventoryAddButton } from "@/components/management/InventoryAddButton";
+
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  price: number;
+  stations: string[];
+  is_active: boolean;
+}
+
+const STATIONS = [
+  { value: 'grill', label: 'Grill' },
+  { value: 'fry', label: 'Fryer' },
+  { value: 'salads', label: 'Salads' },
+  { value: 'broiler', label: 'Broiler' },
+];
 
 const Management = () => {
-  const [selectedTab, setSelectedTab] = useState("inventory");
-
-  // Subscribe to realtime channel
-  useRealtime();
-
-  // Core live data
+  const { profile } = useAuth();
   const { session } = useActiveSession();
-  const inventoryQuery = useInventoryData();
-  const { recipesMap } = useRecipesMap();
-  const prepQuery = usePrepAvailabilityData(session?.id);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [selectedTab, setSelectedTab] = useState(searchParams.get('tab') || 'menu');
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newDish, setNewDish] = useState({
+    name: '',
+    description: '',
+    category: '',
+    price: 0,
+  });
   const staffQuery = useEmployeeStatuses(session?.id);
 
-  // Derived small stats (simple placeholders from live data)
-  const todaysAnalytics = {
-    revenue: 0, // could be calculated from orders when wired
-    orders: 0,  // same as above
-    avgOrderValue: 0,
-    topDishes: [] as { name: string; sold: number; revenue: number }[],
-    wasteLog: [] as { item: string; amount: string; reason: string; cost: number }[],
-    efficiency: 87,
-    performanceScore: 92
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const action = searchParams.get('action');
+    if (tab) setSelectedTab(tab);
+    if (action === 'add' && tab === 'menu') {
+      setShowAddForm(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (profile?.restaurant_id) {
+      initializeMockData(profile.restaurant_id);
+      fetchMenuItems();
+    }
+  }, [profile?.restaurant_id]);
+
+  const fetchMenuItems = async () => {
+    if (!profile?.restaurant_id) return;
+    setLoading(true);
+    try {
+      // Try Supabase first, fall back to mock
+      let data: MenuItem[] = [];
+      let error: any = null;
+
+      try {
+        const result = await supabase
+          .from('recipes')
+          .select('id, name, description, category, price, stations, is_active')
+          .eq('restaurant_id', profile.restaurant_id)
+          .order('category', { ascending: true })
+          .order('name', { ascending: true });
+        data = (result.data || []) as MenuItem[];
+        error = result.error;
+      } catch (e) {
+        // Use mock data when Supabase fails
+        console.warn('Using mock data for recipes');
+        data = mockSupabase.from('recipes')
+          .select('id, name, description, category, price, stations, is_active')
+          .eq('restaurant_id', profile.restaurant_id)
+          .order('category', { ascending: true })
+          .order('name', { ascending: true })
+          .data() as MenuItem[];
+      }
+
+      if (error) throw error;
+      setMenuItems(data);
+    } catch (error: any) {
+      console.error('Error fetching menu:', error);
+      // Try mock as last resort
+      try {
+        const mockData = mockSupabase.from('recipes')
+          .select('id, name, description, category, price, stations, is_active')
+          .eq('restaurant_id', profile.restaurant_id)
+          .data() as MenuItem[];
+        setMenuItems(mockData);
+      } catch {
+        toast({
+          title: "Error",
+          description: "Failed to load menu items",
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getInventoryStatus = (
-    qty: number,
-    min: number | null,
-    urgent: number | null,
-    excess: number | null
-  ) => {
-    if (excess !== null && qty >= excess) return "excess";
-    if (qty <= 0) return "critical";
-    if (urgent !== null && qty <= urgent) return "urgent";
-    if (min !== null && qty <= min) return "low";
-    return "normal";
+  const updateMenuItemStations = async (itemId: string, stations: string[]) => {
+    try {
+      let error: any = null;
+      try {
+        const result = await supabase
+          .from('recipes')
+          .update({ stations })
+          .eq('id', itemId);
+        error = result.error;
+      } catch (e) {
+        // Use mock when Supabase fails
+        mockSupabase.from('recipes').update({ stations }).eq('id', itemId);
+      }
+
+      if (error) throw error;
+
+      setMenuItems(prev =>
+        prev.map(item => item.id === itemId ? { ...item, stations } : item)
+      );
+
+      toast({
+        title: "Updated",
+        description: "Station assignment saved",
+      });
+    } catch (error: any) {
+      // Update local state anyway
+      setMenuItems(prev =>
+        prev.map(item => item.id === itemId ? { ...item, stations } : item)
+      );
+      mockSupabase.from('recipes').update({ stations }).eq('id', itemId);
+      toast({
+        title: "Updated",
+        description: "Station assignment saved (offline mode)",
+      });
+    }
+  };
+
+  const toggleMenuItemActive = async (itemId: string, isActive: boolean) => {
+    try {
+      let error: any = null;
+      try {
+        const result = await supabase
+          .from('recipes')
+          .update({ is_active: isActive })
+          .eq('id', itemId);
+        error = result.error;
+      } catch (e) {
+        // Use mock when Supabase fails
+        mockSupabase.from('recipes').update({ is_active: isActive }).eq('id', itemId);
+      }
+
+      if (error) throw error;
+
+      setMenuItems(prev =>
+        prev.map(item => item.id === itemId ? { ...item, is_active: isActive } : item)
+      );
+    } catch (error: any) {
+      // Update local state anyway
+      setMenuItems(prev =>
+        prev.map(item => item.id === itemId ? { ...item, is_active: isActive } : item)
+      );
+      mockSupabase.from('recipes').update({ is_active: isActive }).eq('id', itemId);
+    }
+  };
+
+  const addDishManually = async () => {
+    if (!profile?.restaurant_id || !newDish.name || !newDish.category || newDish.price <= 0) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields (name, category, price)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      let data: MenuItem | null = null;
+      let error: any = null;
+
+      try {
+        const result = await supabase
+          .from('recipes')
+          .insert({
+            restaurant_id: profile.restaurant_id,
+            name: newDish.name,
+            description: newDish.description || null,
+            category: newDish.category,
+            price: newDish.price,
+            stations: [],
+            batch_size: 1,
+            is_active: true,
+          })
+          .select()
+          .single();
+        data = result.data as MenuItem;
+        error = result.error;
+      } catch (e) {
+        // Use mock when Supabase fails
+        const mockResult = mockSupabase.from('recipes').insert({
+          restaurant_id: profile.restaurant_id,
+          name: newDish.name,
+          description: newDish.description || null,
+          category: newDish.category,
+          price: newDish.price,
+          stations: [],
+          batch_size: 1,
+          is_active: true,
+        }).select().single();
+        data = mockResult.data as MenuItem;
+      }
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Dish added to menu",
+      });
+
+      if (data) {
+        setMenuItems(prev => [...prev, data]);
+      }
+      setNewDish({ name: '', description: '', category: '', price: 0 });
+      setShowAddForm(false);
+    } catch (error: any) {
+      // Add to mock anyway
+      const mockResult = mockSupabase.from('recipes').insert({
+        restaurant_id: profile.restaurant_id,
+        name: newDish.name,
+        description: newDish.description || null,
+        category: newDish.category,
+        price: newDish.price,
+        stations: [],
+        batch_size: 1,
+        is_active: true,
+      }).select().single();
+      const mockData = mockResult.data as MenuItem;
+      setMenuItems(prev => [...prev, mockData]);
+      setNewDish({ name: '', description: '', category: '', price: 0 });
+      setShowAddForm(false);
+      toast({
+        title: "Success",
+        description: "Dish added to menu (offline mode)",
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'normal':
-        return <Badge variant="secondary">Normal</Badge>;
-      case 'low':
-        return <Badge className="bg-warning text-warning-foreground">Low</Badge>;
-      case 'critical':
-        return <Badge variant="destructive">Critical</Badge>;
-      case 'sufficient':
-        return <Badge className="bg-success text-white">Sufficient</Badge>;
-      case 'needed':
-        return <Badge variant="destructive">Needed</Badge>;
       case 'clocked_in':
         return <Badge className="bg-success text-white">✅ Clocked In</Badge>;
       case 'on_break':
@@ -95,9 +287,9 @@ const Management = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background overflow-y-auto">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
       {/* Header */}
-      <header className="bg-white border-b border-border">
+      <header className="bg-white border-b border-border shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -107,235 +299,228 @@ const Management = () => {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold">Management Dashboard</h1>
-                <p className="text-muted-foreground">Real-time kitchen operations overview</p>
+                <h1 className="text-2xl font-bold">Management</h1>
+                <p className="text-muted-foreground">Configure your menu and operations</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
-                <Bell className="h-4 w-4 mr-2" />
-                Alerts
-              </Button>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => navigate('/menu-upload')} 
+                className="bg-primary text-white hover:bg-primary/90"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Menu
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
-        {/* Quick Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <DollarSign className="h-6 w-6 mx-auto mb-2 text-success" />
-                <p className="text-2xl font-bold text-success">${todaysAnalytics.revenue}</p>
-                <p className="text-xs text-muted-foreground">Today's Revenue</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <TrendingUp className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <p className="text-2xl font-bold">{todaysAnalytics.orders}</p>
-                <p className="text-xs text-muted-foreground">Orders Today</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <Users className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <p className="text-2xl font-bold">{staffQuery.data?.filter(s => s.status === 'clocked_in').length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Staff Active</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <Award className="h-6 w-6 mx-auto mb-2 text-success" />
-                <p className="text-2xl font-bold">{todaysAnalytics.efficiency}%</p>
-                <p className="text-xs text-muted-foreground">Efficiency</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <Thermometer className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <p className="text-2xl font-bold">{todaysAnalytics.performanceScore}</p>
-                <p className="text-xs text-muted-foreground">Performance</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <Eye className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <p className="text-2xl font-bold">{prepQuery.data?.length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Prep Items</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-7 md:grid-cols-9">
-            <TabsTrigger value="inventory">Inventory</TabsTrigger>
-            <TabsTrigger value="menu">Menu</TabsTrigger>
-            <TabsTrigger value="recipes">Recipes</TabsTrigger>
-            <TabsTrigger value="prep">Prep Available</TabsTrigger>
-            <TabsTrigger value="prep-lists">Prep Lists</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="menu">Menu & Stations</TabsTrigger>
             <TabsTrigger value="staff">Staff Status</TabsTrigger>
-            <TabsTrigger value="forecast">Forecast</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
-          {/* Inventory Tab */}
-          <TabsContent value="inventory" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Package className="h-5 w-5" />
-                  <span>Raw Inventory</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-3">Ingredient</th>
-                        <th className="text-left p-3">Quantity</th>
-                        <th className="text-left p-3">Status</th>
-                        <th className="text-left p-3">Last Update</th>
-                        <th className="text-left p-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventoryQuery.isLoading ? (
-                        <tr><td className="p-3 text-muted-foreground" colSpan={5}>Loading...</td></tr>
-                      ) : (inventoryQuery.data ?? []).map((item) => {
-                        const status = getInventoryStatus(item.current_quantity, item.min_threshold);
-                        return (
-                          <tr key={item.id} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-medium">{item.ingredient_name}</td>
-                            <td className="p-3">{item.current_quantity} {item.unit}</td>
-                            <td className="p-3">{getStatusBadge(status)}</td>
-                            <td className="p-3 text-muted-foreground">
-                              {item.last_updated_at ? new Date(item.last_updated_at).toLocaleString() : "-"}
-                            </td>
-                            <td className="p-3">
-                              <InventoryAdjustButton
-                                id={item.id}
-                                name={item.ingredient_name}
-                                unit={item.unit}
-                                current={item.current_quantity}
-                                onUpdated={() => inventoryQuery.refetch()}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {!inventoryQuery.isLoading && (inventoryQuery.data ?? []).length === 0 && (
-                        <tr><td className="p-3 text-muted-foreground" colSpan={5}>No inventory yet</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Menu Tab */}
+          {/* Menu & Stations Tab */}
           <TabsContent value="menu" className="space-y-6">
-            <SessionMenuManager />
-          </TabsContent>
-
-          {/* Recipes Tab */}
-          <TabsContent value="recipes" className="space-y-6">
-            <RecipeManager canEdit />
-          </TabsContent>
-
-          {/* Prep Availability Tab */}
-          <TabsContent value="prep" className="space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                 <CardTitle className="flex items-center space-x-2">
                   <ChefHat className="h-5 w-5" />
-                  <span>Prep Availability {session ? `(Session ${session.session_date})` : ""}</span>
+                  <span>Menu Items & Station Assignment</span>
                 </CardTitle>
+                <Button
+                  onClick={() => setShowAddForm(true)}
+                  size="sm"
+                  className="bg-primary text-white hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Dish
+                </Button>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-3">Item</th>
-                        <th className="text-left p-3">Batches</th>
-                        <th className="text-left p-3">Coverage</th>
-                        <th className="text-left p-3">Last Update</th>
-                        <th className="text-left p-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {prepQuery.isLoading ? (
-                        <tr><td className="p-3 text-muted-foreground" colSpan={5}>Loading...</td></tr>
-                      ) : (prepQuery.data ?? []).map((row) => {
-                        const recipe = recipesMap.get(row.recipe_id);
-                        const coverage = recipe ? `${Math.round(recipe.batch_size * row.available_batches)} portions` : "-";
-                        const status = row.available_batches === 0 ? "needed" : row.available_batches === 1 ? "low" : "sufficient";
-                        return (
-                          <tr key={row.id} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-medium">{recipe?.name ?? row.recipe_id}</td>
-                            <td className="p-3">{row.available_batches}×</td>
-                            <td className="p-3">{coverage}</td>
-                            <td className="p-3 text-muted-foreground">
-                              {row.last_updated_at ? new Date(row.last_updated_at).toLocaleString() : "-"}
-                            </td>
-                            <td className="p-3">{getStatusBadge(status)}</td>
-                          </tr>
-                        );
-                      })}
-                      {!prepQuery.isLoading && (prepQuery.data ?? []).length === 0 && (
-                        <tr><td className="p-3 text-muted-foreground" colSpan={5}>
-                          {session ? "No prep availability yet for this session" : "Start a session to track prep availability"}
-                        </td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              <CardContent className="space-y-4">
+                {/* Add Dish Form */}
+                {showAddForm && (
+                  <Card className="border-2 border-primary/20 bg-primary/5">
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-lg">Add New Dish</h3>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setShowAddForm(false);
+                            setNewDish({ name: '', description: '', category: '', price: 0 });
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="dish-name" className="text-foreground font-medium">
+                            Dish Name *
+                          </Label>
+                          <Input
+                            id="dish-name"
+                            value={newDish.name}
+                            onChange={(e) => setNewDish({ ...newDish, name: e.target.value })}
+                            placeholder="e.g., Grilled Chicken Tacos"
+                            className="mt-2 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="dish-category" className="text-foreground font-medium">
+                            Category *
+                          </Label>
+                          <Input
+                            id="dish-category"
+                            value={newDish.category}
+                            onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
+                            placeholder="e.g., Main Course, Salads, Desserts"
+                            className="mt-2 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="dish-price" className="text-foreground font-medium">
+                            Price *
+                          </Label>
+                          <div className="relative mt-2">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                            <Input
+                              id="dish-price"
+                              type="number"
+                              step="0.01"
+                              value={newDish.price || ''}
+                              onChange={(e) => setNewDish({ ...newDish, price: parseFloat(e.target.value) || 0 })}
+                              placeholder="0.00"
+                              className="pl-7 bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="dish-description" className="text-foreground font-medium">
+                            Description (optional)
+                          </Label>
+                          <Input
+                            id="dish-description"
+                            value={newDish.description}
+                            onChange={(e) => setNewDish({ ...newDish, description: e.target.value })}
+                            placeholder="Brief description of the dish"
+                            className="mt-2 bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 pt-2">
+                        <Button
+                          onClick={addDishManually}
+                          className="bg-primary text-white hover:bg-primary/90"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Add Dish
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowAddForm(false);
+                            setNewDish({ name: '', description: '', category: '', price: 0 });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {loading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading menu...</div>
+                ) : menuItems.length === 0 ? (
+                  <div className="text-center py-12 space-y-4">
+                    <ChefHat className="h-16 w-16 mx-auto text-muted-foreground" />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">No menu items yet</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Upload your menu to get started
+                      </p>
+                      <Button onClick={() => navigate('/menu-upload')}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Menu
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {menuItems.map((item) => (
+                      <Card key={item.id} className={!item.is_active ? 'opacity-60' : ''}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <h3 className="font-semibold text-lg">{item.name}</h3>
+                                {!item.is_active && (
+                                  <Badge variant="secondary">Inactive</Badge>
+                                )}
+                              </div>
+                              {item.description && (
+                                <p className="text-sm text-muted-foreground">{item.description}</p>
+                              )}
+                              <div className="flex items-center space-x-4">
+                                <span className="text-sm font-medium">${item.price.toFixed(2)}</span>
+                                <span className="text-sm text-muted-foreground">{item.category}</span>
+                              </div>
+                              <div className="mt-3">
+                                <Label className="text-sm font-medium mb-2 block">
+                                  Assign to Stations
+                                </Label>
+                                <div className="flex flex-wrap gap-2">
+                                  {STATIONS.map((station) => {
+                                    const isSelected = item.stations.includes(station.value);
+                                    return (
+                                      <Button
+                                        key={station.value}
+                                        variant={isSelected ? "default" : "outline"}
+                                        size="sm"
+                                        className={isSelected ? "bg-primary text-white hover:bg-primary/90" : "bg-white text-foreground border-border"}
+                                        onClick={() => {
+                                          const newStations = isSelected
+                                            ? item.stations.filter(s => s !== station.value)
+                                            : [...item.stations, station.value];
+                                          updateMenuItemStations(item.id, newStations);
+                                        }}
+                                      >
+                                        {isSelected && <CheckCircle className="h-3 w-3 mr-1" />}
+                                        {station.label}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleMenuItemActive(item.id, !item.is_active)}
+                              >
+                                {item.is_active ? (
+                                  <CheckCircle className="h-4 w-4 text-success" />
+                                ) : (
+                                  <X className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Analytics Tab */}
-          <TabsContent value="analytics" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Selling Dishes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">Connect orders to see live analytics.</div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Waste & Rework Log</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">Hook up waste logs to view details here.</div>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
           {/* Staff Status Tab */}
@@ -344,7 +529,7 @@ const Management = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Users className="h-5 w-5" />
-                  <span>Staff Clock-in/Clock-out Monitoring</span>
+                  <span>Staff Status</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -385,59 +570,26 @@ const Management = () => {
             </Card>
           </TabsContent>
 
-          {/* Prep Lists Tab */}
-          <TabsContent value="prep-lists" className="space-y-6">
-            <PrepTasksManager />
-          </TabsContent>
-
-          {/* Forecast Tab */}
-          <TabsContent value="forecast" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <TrendingUp className="h-5 w-5" />
-                    <span>Demand Forecast</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">
-                    Conecta ventas y reservas para ver predicciones en tiempo real.
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Prep Recommendations</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">
-                    Recomendaciones automáticas basadas en inventario y disponibilidad de prep.
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
-            <SessionControl />
             <Card>
               <CardHeader>
-                <CardTitle>Restaurant Settings</CardTitle>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="h-5 w-5" />
+                  <span>Restaurant Settings</span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <label className="font-medium">Restaurant Name</label>
+                  <Label className="font-medium">Restaurant Name</Label>
                   <Input placeholder="Your restaurant name" className="mt-2" />
                 </div>
                 <div>
-                  <label className="font-medium">Location</label>
+                  <Label className="font-medium">Location</Label>
                   <Input placeholder="Address" className="mt-2" />
                 </div>
                 <div>
-                  <label className="font-medium">Manager Announcements</label>
+                  <Label className="font-medium">Manager Announcements</Label>
                   <textarea 
                     className="w-full mt-2 p-3 border rounded-lg"
                     rows={4}
@@ -450,8 +602,6 @@ const Management = () => {
           </TabsContent>
         </Tabs>
       </main>
-      
-      <AIAssistant context="management" />
     </div>
   );
 };

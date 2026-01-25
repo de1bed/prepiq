@@ -133,9 +133,9 @@ const Landing = () => {
             PrepIQ digitizes and optimizes professional kitchen operations, connecting your Prep and Cook teams in real-time with smart automation.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in">
-            <Link to="/auth">
+            <Link to="/dashboard">
               <Button size="xl" variant="hero">
-                Start Free Trial
+                Go to Dashboard
               </Button>
             </Link>
             <Link to="/auth">

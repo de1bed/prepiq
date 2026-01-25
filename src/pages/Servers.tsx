@@ -10,6 +10,7 @@ import { useActiveSession } from "@/hooks/useActiveSession";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessionMenu } from "@/hooks/useSessionMenu";
 import { supabase } from "@/integrations/supabase/client";
+import { mockSupabase, initializeMockData } from "@/utils/supabaseWrapper";
 import { ArrowLeft, Plus, Minus, Send, AlertCircle } from "lucide-react";
 
 interface OrderLineDraft {
@@ -67,15 +68,28 @@ const Servers = () => {
 
   const getNextOrderNumber = async (): Promise<number> => {
     if (!profile?.restaurant_id || !session?.id) return 1;
-    const { data: rows, error } = await supabase
-      .from("orders")
-      .select("order_number")
-      .eq("restaurant_id", profile.restaurant_id)
-      .eq("session_id", session.id)
-      .order("order_number", { ascending: false })
-      .limit(1);
-    if (error) return 1;
-    return (rows?.[0]?.order_number ?? 0) + 1;
+    try {
+      const { data: rows, error } = await supabase
+        .from("orders")
+        .select("order_number")
+        .eq("restaurant_id", profile.restaurant_id)
+        .eq("session_id", session.id)
+        .order("order_number", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return (rows?.[0]?.order_number ?? 0) + 1;
+    } catch (e) {
+      // Use mock when Supabase fails
+      const mockRows = mockSupabase.from("orders")
+        .select("order_number")
+        .eq("restaurant_id", profile.restaurant_id)
+        .eq("session_id", session.id)
+        .data() as any[];
+      const maxOrder = mockRows.length > 0 
+        ? Math.max(...mockRows.map((r: any) => r.order_number || 0))
+        : 0;
+      return maxOrder + 1;
+    }
   };
 
   const sendToKitchen = async () => {
@@ -147,14 +161,14 @@ const Servers = () => {
                 <p className="text-muted-foreground">Take orders and manage customer requests</p>
               </div>
             </div>
-            <Badge variant="outline" className="bg-gradient-secondary text-white">
+            <Badge variant="outline" className="bg-secondary text-white border-secondary">
               {session ? `Sesión: ${session.session_date}` : 'Sin sesión activa'}
             </Badge>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Menu Items */}
           <div className="lg:col-span-2">

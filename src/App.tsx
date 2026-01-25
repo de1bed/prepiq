@@ -12,9 +12,9 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Management from "./pages/Management";
 import Servers from "./pages/Servers";
-import Prep from "./pages/Prep";
 import Cook from "./pages/Cook";
 import Clock from "./pages/Clock";
+import MenuUpload from "./pages/MenuUpload";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,12 +28,12 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/management" element={<ProtectedRoute><Management /></ProtectedRoute>} />
-        <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
-        <Route path="/prep" element={<ProtectedRoute><Prep /></ProtectedRoute>} />
-        <Route path="/cook" element={<ProtectedRoute><Cook /></ProtectedRoute>} />
-        <Route path="/clock" element={<ProtectedRoute><Clock /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/management" element={<Management />} />
+        <Route path="/servers" element={<Servers />} />
+        <Route path="/cook" element={<Cook />} />
+        <Route path="/clock" element={<Clock />} />
+        <Route path="/menu-upload" element={<MenuUpload />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

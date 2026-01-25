@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useActiveSession } from "@/hooks/useActiveSession";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { mockSupabase, initializeMockData } from "@/utils/supabaseWrapper";
 import { ArrowLeft, Timer } from "lucide-react";
 
 interface KitchenOrderItem {
@@ -29,7 +30,6 @@ const STATIONS = [
   { value: 'fry', label: 'Fryer' },
   { value: 'salads', label: 'Salads' },
   { value: 'broiler', label: 'Broiler' },
-  { value: 'prep', label: 'Prep' },
 ];
 
 const Cook = () => {
@@ -40,53 +40,107 @@ const Cook = () => {
 
   const load = async () => {
     if (!profile?.restaurant_id || !session?.id) { setOrders([]); return; }
-    const { data: orderRows, error: e1 } = await supabase
-      .from('orders')
-      .select('id, table_number, ordered_at, status')
-      .eq('restaurant_id', profile.restaurant_id)
-      .eq('session_id', session.id)
-      .order('ordered_at', { ascending: true });
-    if (e1) return;
-    const ids = (orderRows ?? []).map(o => o.id);
-    if (ids.length === 0) { setOrders([]); return; }
-    const { data: itemRows, error: e2 } = await supabase
-      .from('order_items')
-      .select('order_id, recipe_id, quantity, modifications, station_assignments')
-      .in('order_id', ids);
-    if (e2) return;
-    const { data: recipes, error: e3 } = await supabase
-      .from('recipes')
-      .select('id, name, stations')
-      .eq('restaurant_id', profile.restaurant_id);
-    if (e3) return;
-    const recipesById = new Map<string, any>();
-    for (const r of recipes ?? []) recipesById.set(r.id, r);
+    
+    initializeMockData(profile.restaurant_id);
+    
+    try {
+      const { data: orderRows, error: e1 } = await supabase
+        .from('orders')
+        .select('id, table_number, ordered_at, status')
+        .eq('restaurant_id', profile.restaurant_id)
+        .eq('session_id', session.id)
+        .order('ordered_at', { ascending: true });
+      if (e1) throw e1;
+      const ids = (orderRows ?? []).map(o => o.id);
+      if (ids.length === 0) { setOrders([]); return; }
+      const { data: itemRows, error: e2 } = await supabase
+        .from('order_items')
+        .select('order_id, recipe_id, quantity, modifications, station_assignments')
+        .in('order_id', ids);
+      if (e2) throw e2;
+      const { data: recipes, error: e3 } = await supabase
+        .from('recipes')
+        .select('id, name, stations')
+        .eq('restaurant_id', profile.restaurant_id);
+      if (e3) throw e3;
+      const recipesById = new Map<string, any>();
+      for (const r of recipes ?? []) recipesById.set(r.id, r);
 
-    const grouped: KitchenOrder[] = [];
-    for (const o of (orderRows ?? [])) {
-      const items: KitchenOrderItem[] = [];
-      for (const i of (itemRows ?? []).filter(ir => ir.order_id === o.id)) {
-        const assigned: string[] = (i as any).station_assignments ?? [];
-        const stations: string[] = assigned.length > 0 ? assigned : (recipesById.get(i.recipe_id)?.stations ?? []);
-        if (!stations.includes(station)) continue;
-        items.push({
-          recipe_id: i.recipe_id,
-          name: recipesById.get(i.recipe_id)?.name ?? i.recipe_id,
-          quantity: i.quantity,
-          modifiers: (i.modifications as any[]) || [],
-        });
+      const grouped: KitchenOrder[] = [];
+      for (const o of (orderRows ?? [])) {
+        const items: KitchenOrderItem[] = [];
+        for (const i of (itemRows ?? []).filter(ir => ir.order_id === o.id)) {
+          const assigned: string[] = (i as any).station_assignments ?? [];
+          const stations: string[] = assigned.length > 0 ? assigned : (recipesById.get(i.recipe_id)?.stations ?? []);
+          if (!stations.includes(station)) continue;
+          items.push({
+            recipe_id: i.recipe_id,
+            name: recipesById.get(i.recipe_id)?.name ?? i.recipe_id,
+            quantity: i.quantity,
+            modifiers: (i.modifications as any[]) || [],
+          });
+        }
+        if (items.length > 0) {
+          grouped.push({
+            id: o.id,
+            table_number: o.table_number,
+            ordered_at: o.ordered_at,
+            status: o.status,
+            items,
+          });
+        }
       }
-      if (items.length > 0) {
-        grouped.push({
-          id: o.id,
-          table_number: o.table_number,
-          ordered_at: o.ordered_at,
-          status: o.status,
-          items,
-        });
+      setOrders(grouped);
+    } catch (e) {
+      // Use mock data when Supabase fails
+      const mockOrderRows = mockSupabase.from('orders')
+        .select('id, table_number, ordered_at, status')
+        .eq('restaurant_id', profile.restaurant_id)
+        .eq('session_id', session.id)
+        .data() as any[];
+      
+      const ids = (mockOrderRows ?? []).map(o => o.id);
+      if (ids.length === 0) { setOrders([]); return; }
+      
+      const mockItemRows = mockSupabase.from('order_items')
+        .select('order_id, recipe_id, quantity, modifications, station_assignments')
+        .in('order_id', ids)
+        .data() as any[];
+      
+      const mockRecipes = mockSupabase.from('recipes')
+        .select('id, name, stations')
+        .eq('restaurant_id', profile.restaurant_id)
+        .data() as any[];
+      
+      const recipesById = new Map<string, any>();
+      for (const r of mockRecipes ?? []) recipesById.set(r.id, r);
+
+      const grouped: KitchenOrder[] = [];
+      for (const o of (mockOrderRows ?? [])) {
+        const items: KitchenOrderItem[] = [];
+        for (const i of (mockItemRows ?? []).filter((ir: any) => ir.order_id === o.id)) {
+          const assigned: string[] = (i as any).station_assignments ?? [];
+          const stations: string[] = assigned.length > 0 ? assigned : (recipesById.get(i.recipe_id)?.stations ?? []);
+          if (!stations.includes(station)) continue;
+          items.push({
+            recipe_id: i.recipe_id,
+            name: recipesById.get(i.recipe_id)?.name ?? i.recipe_id,
+            quantity: i.quantity,
+            modifiers: (i.modifications as any[]) || [],
+          });
+        }
+        if (items.length > 0) {
+          grouped.push({
+            id: o.id,
+            table_number: o.table_number,
+            ordered_at: o.ordered_at,
+            status: o.status,
+            items,
+          });
+        }
       }
+      setOrders(grouped);
     }
-    setOrders(grouped);
   };
 
   useEffect(() => { load(); }, [profile?.restaurant_id, session?.id, station]);
@@ -143,7 +197,7 @@ const Cook = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Card className="bg-white text-black">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Live Kitchen Orders</CardTitle>

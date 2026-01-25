@@ -20,9 +20,9 @@ export default function Auth() {
     password: ''
   });
 
-  // Restaurant login form (only for davidrocha0520@gmail.com)
+  // Restaurant login form
   const [restaurantLogin, setRestaurantLogin] = useState({
-    email: 'davidrocha0520@gmail.com',
+    email: '',
     password: ''
   });
 
@@ -67,10 +67,10 @@ export default function Auth() {
   const handleRestaurantLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!restaurantLogin.password) {
+    if (!restaurantLogin.email || !restaurantLogin.password) {
       toast({
         title: "Error",
-        description: "Por favor ingresa la contraseña",
+        description: "Por favor completa todos los campos",
         variant: "destructive"
       });
       return;
@@ -118,8 +118,9 @@ export default function Auth() {
                 id="restaurantEmail"
                 type="email"
                 value={restaurantLogin.email}
-                disabled
-                className="bg-muted"
+                onChange={(e) => setRestaurantLogin({ ...restaurantLogin, email: e.target.value })}
+                placeholder="Ingresa el email del restaurante"
+                required
               />
             </div>
             <div>
@@ -137,6 +138,16 @@ export default function Auth() {
               <LogIn className="mr-2 h-4 w-4" />
               {loading ? 'Verificando...' : 'Acceder al Restaurante'}
             </Button>
+            <div className="mt-4 pt-4 border-t">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => navigate('/dashboard')}
+              >
+                Skip to Dashboard (Testing)
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

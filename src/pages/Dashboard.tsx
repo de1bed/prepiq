@@ -9,7 +9,6 @@ import {
   ChefHat, 
   Users, 
   Utensils, 
-  ClipboardList, 
   BarChart3,
   LogOut,
   Settings,
@@ -51,15 +50,6 @@ const Dashboard = () => {
       code: "1111"
     },
     {
-      id: "prep",
-      title: "Prep",
-      description: "Log prepared food and update inventory",
-      icon: ClipboardList,
-      path: "/prep",
-      color: "bg-success",
-      code: "2222"
-    },
-    {
       id: "cook",
       title: "Cook",
       description: "Receive and manage live kitchen orders",
@@ -71,7 +61,7 @@ const Dashboard = () => {
     {
       id: "management",
       title: "Management",
-      description: "Supervise operations, analytics and settings",
+      description: "Configure menu, stations, and settings",
       icon: BarChart3,
       path: "/management",
       color: "bg-gradient-primary",
@@ -89,19 +79,21 @@ const Dashboard = () => {
   ];
 
   const handleStationClick = (station: typeof stations[0]) => {
-    // Check if user already has access stored
-    const hasAccess = localStorage.getItem(`station_access_${station.id}`) === 'true';
+    // Bypass access codes for testing - navigate directly
+    navigate(station.path);
     
-    if (hasAccess) {
-      navigate(station.path);
-    } else {
-      setAccessDialog({
-        isOpen: true,
-        stationId: station.id,
-        stationTitle: station.title,
-        stationPath: station.path
-      });
-    }
+    // Original code with access check (commented out for testing):
+    // const hasAccess = localStorage.getItem(`station_access_${station.id}`) === 'true';
+    // if (hasAccess) {
+    //   navigate(station.path);
+    // } else {
+    //   setAccessDialog({
+    //     isOpen: true,
+    //     stationId: station.id,
+    //     stationTitle: station.title,
+    //     stationPath: station.path
+    //   });
+    // }
   };
 
   const closeAccessDialog = () => {
@@ -114,29 +106,33 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
       {/* Header */}
-      <header className="bg-white border-b border-border">
+      <header className="bg-white/80 backdrop-blur-sm border-b border-border/50 shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
-              <ChefHat className="h-8 w-8 text-primary" />
+              <div className="p-2 bg-primary rounded-lg shadow-md">
+                <ChefHat className="h-6 w-6 text-white drop-shadow-sm" />
+              </div>
               <div>
-              <h1 className="text-2xl font-bold">PrepIQ Restaurant</h1>
-                <p className="text-sm text-muted-foreground">
-                  Integrated Management System
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+                  PrepIQ
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Restaurant Management System
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <Badge variant="outline" className="px-3 py-1">
-                {user?.email}
+            <div className="flex items-center space-x-3">
+              <Badge variant="outline" className="px-3 py-1.5 bg-white">
+                {user?.email || 'test@example.com'}
               </Badge>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/management')}>
                 <Settings className="h-5 w-5" />
               </Button>
-              <Button variant="outline" onClick={handleLogout}>
+              <Button variant="outline" onClick={handleLogout} size="sm">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
@@ -146,35 +142,48 @@ const Dashboard = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Station Selection */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Select Your Station</h2>
-          <p className="text-muted-foreground mb-8">
-            Enter the corresponding access code for each station
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Welcome Section */}
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold mb-3 bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+            Welcome to PrepIQ
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Select your station to get started. Manage orders, track staff, and run your restaurant efficiently.
           </p>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-            {stations.map((station) => (
-              <div key={station.id}>
-                <Card 
-                  className="hover:shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer group"
-                  onClick={() => handleStationClick(station)}
-                >
-                  <CardHeader className="text-center pb-4">
-                    <div className={`w-16 h-16 ${station.color} rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform`}>
-                      <station.icon className="h-8 w-8 text-white" />
-                    </div>
-                    <CardTitle className="text-xl">{station.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-center pt-0">
-                    <p className="text-muted-foreground text-sm mb-2">{station.description}</p>
-                    <p className="text-xs text-muted-foreground">Code: {station.code}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
-          </div>
+        </div>
+
+        {/* Station Selection */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          {stations.map((station) => (
+            <Card 
+              key={station.id}
+              className="hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer group border-2 hover:border-primary/50 bg-white/80 backdrop-blur-sm"
+              onClick={() => handleStationClick(station)}
+            >
+              <CardHeader className="text-center pb-4 pt-6">
+                <div className={`w-20 h-20 ${station.color} rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
+                  <station.icon className="h-10 w-10 text-white drop-shadow-sm" />
+                </div>
+                <CardTitle className="text-xl font-bold">{station.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center pt-0 pb-6">
+                <p className="text-muted-foreground text-sm leading-relaxed">{station.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mt-12 text-center">
+          <p className="text-sm text-muted-foreground mb-4">Quick Setup</p>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/menu-upload')}
+            className="bg-white text-foreground border-2 hover:bg-primary hover:text-white hover:border-primary"
+          >
+            Upload Your Menu
+          </Button>
         </div>
 
         {/* Station Access Dialog */}

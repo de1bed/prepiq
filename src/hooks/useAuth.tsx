@@ -48,43 +48,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // Bypass auth for testing - set mock user immediately
+    const mockUser = {
+      id: 'test-user-id',
+      email: 'test@example.com',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+    } as User;
 
-      if (session?.user) {
-        // Bootstrap profile in DB (deferred) and set client profile
-        setTimeout(() => ensureProfile(session.user!.id), 0);
-        setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
-      }
+    setUser(mockUser);
+    setProfile({ id: mockUser.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
+    setLoading(false);
 
-      setLoading(false);
-    });
+    // Commented out real auth for testing
+    // supabase.auth.getSession().then(({ data: { session } }) => {
+    //   setSession(session);
+    //   setUser(session?.user ?? null);
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    //   if (session?.user) {
+    //     // Bootstrap profile in DB (deferred) and set client profile
+    //     setTimeout(() => ensureProfile(session.user!.id), 0);
+    //     setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
+    //   }
 
-        if (session?.user) {
-          // Defer supabase calls inside auth callback to avoid deadlocks
-          setTimeout(() => ensureProfile(session.user!.id), 0);
-          setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
-        } else {
-          setProfile(null);
-        }
+    //   setLoading(false);
+    // });
 
-        setLoading(false);
-      }
-    );
+    // // Listen for auth changes
+    // const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    //   (_event, session) => {
+    //     setSession(session);
+    //     setUser(session?.user ?? null);
 
-    return () => subscription.unsubscribe();
+    //     if (session?.user) {
+    //       // Defer supabase calls inside auth callback to avoid deadlocks
+    //       setTimeout(() => ensureProfile(session.user!.id), 0);
+    //       setProfile({ id: session.user.id, restaurant_id: '24802dac-d026-4ac8-87bd-b3f22d8bd97e' });
+    //     } else {
+    //       setProfile(null);
+    //     }
+
+    //     setLoading(false);
+    //   }
+    // );
+
+    // return () => subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Bypass auth for testing - just clear mock user
+    setUser(null);
+    setProfile(null);
+    // await supabase.auth.signOut();
   };
 
   return (
