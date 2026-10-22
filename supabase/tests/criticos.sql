@@ -462,5 +462,23 @@ begin
     'permiso_denegado', 'mesero no ve reportes');
 end $$;
 
+-- =====================================================================
+-- 16. Jornada automática: si nadie cerró la de ayer, se cierra sola y se abre la de hoy
+-- =====================================================================
+do $$
+declare v_old uuid; r jsonb;
+begin
+  select id into v_old from public.service_days where restaurant_id = pg_temp.rid() and status = 'abierta';
+  update public.service_days set business_date = business_date - 1 where id = v_old;
+  perform pg_temp.login('elena@demo.prepiq.test');
+  r := public.rpc_order_submit(gen_random_uuid(), pg_temp.rid(), null, jsonb_build_object('id', gen_random_uuid(),
+    'order_type', 'llevar', 'customer_name', 'Rollover', 'items', jsonb_build_array(jsonb_build_object('id', gen_random_uuid(),
+      'menu_item_id', pg_temp.mi('Refresco'), 'qty', 1))), 'todo');
+  perform pg_temp.ok((select status from public.service_days where id = v_old) = 'cerrada', 'la jornada vieja se cerró sola con nota');
+  perform pg_temp.ok((r->'order'->>'number')::int = 1, 'la nueva jornada reinicia la numeración');
+  perform pg_temp.ok(exists (select 1 from public.kitchen_tickets k join public.service_days d on d.id = k.service_day_id
+    where d.id = v_old and k.status in ('nuevo', 'en_preparacion')), 'los tickets activos de ayer siguen en cocina');
+end $$;
+
 select pg_temp.logout();
 \echo '✔ Todas las pruebas críticas pasaron.'

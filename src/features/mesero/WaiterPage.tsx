@@ -1,9 +1,9 @@
 import {
-  ArrowLeft, Ban, Bell, CheckCircle2, ChefHat, Clock, CloudOff, Flame, Minus, Pencil, Plus, Replace, Send, ShoppingBag, Trash2, Users,
+  ArrowLeft, Ban, Bell, CheckCircle2, ChefHat, Clock, CloudOff, Flame, Minus, Pencil, Plus, Replace, Send, ShoppingBag, Star, Trash2, Users,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { useLiveTables, useMenu, useOrders, useStaff, useStations, type MenuData, type OrderWithItems } from '@/data/hooks';
+import { useLiveTables, useMenu, useOrder, useOrders, useStaff, useStations, type MenuData, type OrderWithItems } from '@/data/hooks';
 import { useApp } from '@/state/session';
 import { useEnqueue, useSync } from '@/state/sync';
 import { useOverride, OperatorBadge } from '@/components/Pin';
@@ -155,9 +155,8 @@ function OrderEditor() {
   const requestOverride = useOverride();
   const { ops } = useSync();
   const { data: menu, isLoading: menuLoading } = useMenu();
-  const { data: orders } = useOrders({ status: 'todas', sinceHours: 36 });
+  const { data: server, isLoading: orderLoading } = useOrder(orderId);
   const { data: stations } = useStations();
-  const server = orders?.find((o) => o.id === orderId);
 
   const [draft, setDraft] = useState<OrderDraft | null>(() => (orderId ? getDraft(orderId) : null));
   // Al abrir una orden existente sin borrador local, el borrador parte de lo pendiente en el servidor.
@@ -195,7 +194,7 @@ function OrderEditor() {
     .flatMap((o) => ((o.args.p_order as { items?: DraftLine[] }).items ?? []))
     .filter((l) => !server?.items.some((i) => i.id === l.id));
 
-  if (menuLoading || !menu) return <Spinner />;
+  if (menuLoading || !menu || (orderLoading && !draft)) return <Spinner />;
   if (!draft && !server) {
     return <EmptyState title="Orden no encontrada"><Button className="mt-2" onClick={() => nav('/mesero')}>Volver</Button></EmptyState>;
   }
@@ -325,6 +324,14 @@ function OrderEditor() {
                   <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                     <span className="flex items-center gap-2"><ChefHat className="h-4 w-4 text-slate-400" />{stationName(t.station_id)}{t.course > 1 && ` · tiempo ${t.course}`}</span>
                     <span className="flex items-center gap-2">
+                      {(t.status === 'nuevo' || t.status === 'en_preparacion') && (
+                        <Button size="sm" variant="ghost" title="Pedir prioridad (requiere gerente)" aria-label="Pedir prioridad" onClick={async () => {
+                          const ov = await authorize('orders.priority', 'Dar prioridad a este ticket en cocina.');
+                          if (ov === false) return;
+                          await enqueue('rpc_ticket_action', { p_ticket_id: t.id, p_action: 'prioridad', p_args: {}, p_override: ov }, { label: `Prioridad ${stationName(t.station_id)}` });
+                          toast('info', 'Prioridad enviada a cocina');
+                        }}><Star className="h-4 w-4 text-fuchsia-600" /></Button>
+                      )}
                       <Badge tone={t.blocked ? 'red' : TICKET_TONE[t.status]}>{t.blocked ? 'Faltante' : TICKET_TEXT[t.status]}</Badge>
                       {t.status === 'listo' && (
                         <Button size="sm" variant="success" icon={<CheckCircle2 className="h-4 w-4" />} data-testid="deliver-ticket"

@@ -151,6 +151,23 @@ export function useOrders(opts: { status?: 'abierta' | 'todas'; mine?: string | 
   });
 }
 
+export function useOrder(orderId: string | undefined) {
+  const rid = useRid();
+  const interval = usePollInterval();
+  return useQuery({
+    queryKey: ['orders', rid, 'one', orderId],
+    enabled: !!rid && !!orderId,
+    refetchInterval: interval,
+    queryFn: async (): Promise<OrderWithItems | null> => {
+      const rows = await read<OrderWithItems[]>(supabase.from('orders')
+        .select('*, items:order_items(*), tickets:kitchen_tickets(id, station_id, status, blocked, course, ready_at)')
+        .eq('restaurant_id', rid).eq('id', orderId!));
+      const o = rows[0];
+      return o ? { ...o, items: [...(o.items ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at)) } : null;
+    },
+  });
+}
+
 export function useServiceDay() {
   const rid = useRid();
   return useQuery({

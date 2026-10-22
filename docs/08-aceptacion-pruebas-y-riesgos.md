@@ -22,7 +22,7 @@
 ```bash
 npm run typecheck && npm test && npm run test:db && npm run test:e2e
 ```
-Última ejecución: tipos ✅ · 24 unitarias ✅ · 85 verificaciones SQL ✅ · 7 E2E en Chromium ✅.
+Última ejecución: tipos ✅ · 24 unitarias ✅ · 85 verificaciones SQL ✅ · 8 E2E en Chromium ✅.
 
 ## 8.2 Pruebas manuales recomendadas antes del piloto
 

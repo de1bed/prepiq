@@ -86,7 +86,7 @@ export function KdsPage() {
   // Soporte para bump-bar / teclado: 1–9 selecciona, Enter = listo, I = iniciar, R = recientes.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest('input, textarea, [role="dialog"]')) return;
+      if ((e.target as HTMLElement)?.closest('input, textarea, [role="dialog"]') || document.querySelector('[role="dialog"]')) return;
       if (/^[1-9]$/.test(e.key)) setSelected(Number(e.key) - 1);
       else if (e.key === 'ArrowRight') setSelected((s) => Math.min(queue.length - 1, s + 1));
       else if (e.key === 'ArrowLeft') setSelected((s) => Math.max(0, s - 1));

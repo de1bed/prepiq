@@ -2,7 +2,7 @@
 // dispositivo vinculado) y, en dispositivos compartidos, el operador
 // identificado por PIN.
 import type { Session } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { rpc, RpcError } from '@/lib/rpc';
 import type { DeviceContext, MyContexts, Permission, RestaurantSettings, StaffContext } from '@/lib/types';
@@ -66,6 +66,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AppState['status']>('loading');
   const [error, setError] = useState<string | null>(null);
   const [contexts, setContexts] = useState<MyContexts | null>(null);
+  const userRef = useRef<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(() => safeGet(ACTIVE_KEY));
   const [operator, setOperatorState] = useState<Operator | null>(() => {
     const raw = safeGet(OPERATOR_KEY);
@@ -105,6 +106,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!alive) return;
       setSession(data.session);
+      userRef.current = data.session?.user.id ?? null;
       if (data.session) {
         const c = await refreshContexts();
         setStatus(c ? 'ready' : 'error');
@@ -113,9 +115,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       if (event === 'SIGNED_OUT' || !s) {
+        userRef.current = null;
         setContexts(null);
         setStatus('signed_out');
-      } else if (event === 'SIGNED_IN') {
+      } else if (event === 'SIGNED_IN' && userRef.current !== s.user.id) {
+        // Supabase repite SIGNED_IN al volver a la pestaña: solo recargar si cambió la cuenta.
+        userRef.current = s.user.id;
         setStatus('loading');
         void refreshContexts().then((c) => setStatus(c ? 'ready' : 'error'));
       }

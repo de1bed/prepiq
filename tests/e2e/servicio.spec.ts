@@ -21,8 +21,8 @@ test('pedido → cocina → entrega, con actor y consumo registrados', async ({ 
   await expectSynced(m);
   await expect(m.getByText('Mesa 9')).toBeVisible();
 
+  await expect.poll(async () => (await q(`select id from orders where table_label = '9'`)).length, { timeout: 20_000 }).toBe(1);
   const [order] = await q<{ id: string; number: number }>(`select id, number from orders where table_label = '9'`);
-  expect(order).toBeTruthy();
 
   // Tableta de cocina (dispositivo compartido) con PIN de Carla.
   const kds = await newPage(browser, 'kds-comal@demo.prepiq.test');

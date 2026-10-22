@@ -241,23 +241,32 @@ returns boolean language sql stable security definer set search_path = public, a
 $$;
 
 -- Jornada abierta. Si no hay y el restaurante permite apertura automática,
--- se abre la del día de negocio actual.
+-- se abre la del día de negocio actual. Con apertura automática, si la
+-- jornada abierta es de un día de negocio anterior (nadie la cerró), se
+-- cierra sola con nota y se abre la de hoy (los tickets activos siguen
+-- visibles en cocina; solo cambia la jornada de las órdenes nuevas).
 create or replace function app.ensure_service_day(p_restaurant uuid, p_ctx jsonb)
 returns public.service_days language plpgsql security definer set search_path = public, app, pg_temp as $$
-declare v_day public.service_days;
+declare v_day public.service_days; v_today date := app.business_date(p_restaurant);
+  v_auto boolean := app.setting_bool(p_restaurant, 'auto_open_service_day', true);
 begin
-  select * into v_day from public.service_days where restaurant_id = p_restaurant and status = 'abierta';
-  if v_day.id is not null then return v_day; end if;
-  if not app.setting_bool(p_restaurant, 'auto_open_service_day', true) then
+  select * into v_day from public.service_days where restaurant_id = p_restaurant and status = 'abierta' for update;
+  if v_day.id is not null then
+    if v_day.business_date >= v_today or not v_auto then return v_day; end if;
+    update public.service_days set status = 'cerrada', closed_at = now(),
+      close_note = 'Cierre automático por cambio de día de negocio'
+    where id = v_day.id;
+  end if;
+  if not v_auto then
     perform app.fail('jornada_cerrada', null, 'Un gerente debe abrir la jornada.');
   end if;
   insert into public.service_days(restaurant_id, business_date, opened_by)
-  values (p_restaurant, app.business_date(p_restaurant), (p_ctx->>'staff_id')::uuid)
+  values (p_restaurant, v_today, (p_ctx->>'staff_id')::uuid)
   on conflict (restaurant_id, business_date) do nothing
   returning * into v_day;
   if v_day.id is null then
     -- Ya existía la del día pero estaba cerrada.
-    perform app.fail('jornada_cerrada', app.business_date(p_restaurant)::text,
+    perform app.fail('jornada_cerrada', v_today::text,
       'La jornada de hoy ya se cerró. Un gerente puede reabrirla.');
   end if;
   return v_day;
