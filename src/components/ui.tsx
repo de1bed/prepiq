@@ -156,11 +156,11 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', dar
   );
 }
 
-export function Tabs<T extends string>({ value, onChange, tabs, className }: {
-  value: T; onChange: (v: T) => void; tabs: { value: T; label: ReactNode; count?: number }[]; className?: string;
+export function Tabs<T extends string>({ value, onChange, tabs, className, dark }: {
+  value: T; onChange: (v: T) => void; tabs: { value: T; label: ReactNode; count?: number }[]; className?: string; dark?: boolean;
 }) {
   return (
-    <div className={cx('flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1', className)} role="tablist">
+    <div className={cx('flex gap-1 overflow-x-auto rounded-xl p-1', dark ? 'bg-slate-800' : 'bg-slate-100', className)} role="tablist">
       {tabs.map((t) => (
         <button
           key={t.value}
@@ -168,7 +168,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, className }: {
           aria-selected={value === t.value}
           onClick={() => onChange(t.value)}
           className={cx('whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition',
-            value === t.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900')}
+            value === t.value ? 'bg-white text-slate-900 shadow-sm' : dark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900')}
         >
           {t.label}
           {t.count !== undefined && <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 text-xs">{t.count}</span>}

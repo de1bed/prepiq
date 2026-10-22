@@ -50,7 +50,7 @@ export function ExpoPage() {
         {!device && <button onClick={() => nav('/')} className="rounded-lg p-2 hover:bg-white/10" aria-label="Volver"><ArrowLeft className="h-5 w-5" /></button>}
         <h1 className="text-xl font-black">Pase</h1>
         <span className="rounded bg-slate-800 px-2 py-0.5 text-sm">{orders.filter((o) => o.allReady).length} órdenes listas para salir</span>
-        <Tabs value={view} onChange={setView} className="ml-2 bg-slate-800" tabs={[{ value: 'ordenes', label: 'Por orden' }, { value: 'tickets', label: 'Por ticket' }]} />
+        <Tabs dark value={view} onChange={setView} className="ml-2" tabs={[{ value: 'ordenes', label: 'Por orden' }, { value: 'tickets', label: 'Por ticket' }]} />
         <div className="ml-auto flex items-center gap-2"><SyncIndicator dark /><OperatorBadge dark /></div>
       </header>
       <main className="p-3">
@@ -79,7 +79,7 @@ export function ExpoPage() {
                     <li key={t.id} className="rounded-lg bg-black/20 p-2">
                       <div className="mb-1 flex items-center justify-between text-sm font-bold">
                         <span>{stationName(t.station_id)}{t.course > 1 && ` · T${t.course}`}</span>
-                        <span className={cx('rounded px-1.5', t.blocked ? 'bg-red-600' : t.status === 'listo' ? 'bg-emerald-600' : t.status === 'en_espera' ? 'bg-violet-700' : 'bg-amber-500 text-black')}>
+                        <span className={cx('rounded px-1.5', t.blocked ? 'bg-red-600' : t.status === 'listo' ? 'bg-emerald-600' : t.status === 'en_espera' ? 'bg-violet-700' : t.status === 'nuevo' ? 'bg-sky-700' : 'bg-amber-500 text-black')}>
                           {t.blocked ? 'FALTANTE' : t.status === 'listo' ? 'LISTO' : t.status === 'en_espera' ? 'EN ESPERA' : t.status === 'nuevo' ? 'EN COLA' : 'PREPARANDO'}
                         </span>
                       </div>

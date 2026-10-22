@@ -10,16 +10,16 @@ import { HomePage } from './features/home/HomePage';
 import { WaiterPage } from './features/mesero/WaiterPage';
 import { KdsPage, KdsStationPicker } from './features/kds/KdsPage';
 import { ExpoPage } from './features/kds/ExpoPage';
-import { ShiftLeadPage } from './features/turno/ShiftLeadPage';
-import { InventoryPage } from './features/inventario/InventoryPage';
-import { LabelsPage } from './features/etiquetas/LabelsPage';
-import { SchedulePage } from './features/horarios/SchedulePage';
-import { MyPage } from './features/mi/MyPage';
 import { KioskPage } from './features/reloj/KioskPage';
-import { ReportsPage } from './features/reportes/ReportsPage';
-import { AdminPage } from './features/admin/AdminPage';
 import { OperatorGate } from './components/Pin';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
+const AdminPage = lazy(() => import('./features/admin/AdminPage').then((m) => ({ default: m.AdminPage })));
+const ReportsPage = lazy(() => import('./features/reportes/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const MyPage = lazy(() => import('./features/mi/MyPage').then((m) => ({ default: m.MyPage })));
+const SchedulePage = lazy(() => import('./features/horarios/SchedulePage').then((m) => ({ default: m.SchedulePage })));
+const LabelsPage = lazy(() => import('./features/etiquetas/LabelsPage').then((m) => ({ default: m.LabelsPage })));
+const InventoryPage = lazy(() => import('./features/inventario/InventoryPage').then((m) => ({ default: m.InventoryPage })));
+const ShiftLeadPage = lazy(() => import('./features/turno/ShiftLeadPage').then((m) => ({ default: m.ShiftLeadPage })));
 
 function RequirePerm({ perm, children }: { perm: string | string[]; children: ReactNode }) {
   const { can, device } = useApp();
@@ -88,6 +88,7 @@ export function App() {
   }
 
   return (
+    <Suspense fallback={<Spinner className="min-h-screen" />}>
     <Routes>
       <Route path="/cocina/:stationId" element={<RequirePerm perm="kds.view"><KdsPage /></RequirePerm>} />
       <Route path="/cocina" element={<RequirePerm perm="kds.view"><Shell><KdsStationPicker /></Shell></RequirePerm>} />
@@ -104,5 +105,6 @@ export function App() {
       <Route path="/" element={<Shell><HomePage /></Shell>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

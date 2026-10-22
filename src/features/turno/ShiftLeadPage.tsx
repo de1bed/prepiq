@@ -11,6 +11,7 @@ import { formatDateTime } from '@/lib/time';
 import { formatQty } from '@/lib/format';
 import { Badge, Button, Card, EmptyState, Field, Modal, PageHeader, Textarea, useToast } from '@/components/ui';
 import { AvailabilityModal } from '../kds/shared';
+import { ReasonDialog } from '@/components/ReasonDialog';
 import { useNow } from '../kds/useNow';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -148,6 +149,16 @@ function CloseDayModal({ open, onClose }: { open: boolean; onClose: () => void }
 function IncidentList({ incidents, canManage }: { incidents: import('@/lib/types').Incident[]; canManage: boolean }) {
   const enqueue = useEnqueue();
   const { restaurant } = useApp();
+  const [resolving, setResolving] = useState<string | null>(null);
+  const dialog = (
+    <ReasonDialog open={!!resolving} onClose={() => setResolving(null)} title="¿Cómo se resolvió?" freeText tone="primary" confirmLabel="Resolver"
+      reasons={[{ value: '1', label: 'Llegó el insumo' }, { value: '2', label: 'Se reparó el equipo' }, { value: '3', label: 'Se cambió el platillo' }]}
+      onSubmit={(resolution) => {
+        const id = resolving!;
+        setResolving(null);
+        void enqueue('rpc_incident_update', { p_incident_id: id, p_status: 'resuelta', p_resolution: resolution }, { label: 'Resolver incidencia' });
+      }} />
+  );
   if (incidents.length === 0) return <EmptyState className="p-4" icon={<CheckCircle2 className="h-6 w-6" />} title="Sin incidencias abiertas" />;
   return (
     <ul className="divide-y">
@@ -160,14 +171,12 @@ function IncidentList({ incidents, canManage }: { incidents: import('@/lib/types
           {canManage && (
             <span className="flex gap-1">
               {i.status === 'abierta' && <Button size="sm" variant="secondary" onClick={() => void enqueue('rpc_incident_update', { p_incident_id: i.id, p_status: 'en_atencion' }, { label: 'Atender incidencia' })}>Atender</Button>}
-              <Button size="sm" variant="success" onClick={() => {
-                const resolution = window.prompt('¿Cómo se resolvió?') ?? '';
-                void enqueue('rpc_incident_update', { p_incident_id: i.id, p_status: 'resuelta', p_resolution: resolution || null }, { label: 'Resolver incidencia' });
-              }}>Resolver</Button>
+              <Button size="sm" variant="success" onClick={() => setResolving(i.id)}>Resolver</Button>
             </span>
           )}
         </li>
       ))}
+      {dialog}
     </ul>
   );
 }

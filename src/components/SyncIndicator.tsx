@@ -11,13 +11,14 @@ export function SyncIndicator({ dark }: { dark?: boolean }) {
   const [open, setOpen] = useState(false);
   let tone = 'ok';
   let text = 'En línea';
+  let detail = '';
   let Icon = Zap;
   if (!online) { tone = 'off'; text = pendingCount ? `Sin conexión · ${pendingCount} por enviar` : 'Sin conexión'; Icon = CloudOff; }
   else if (failedCount) { tone = 'fail'; text = `${failedCount} con error`; Icon = AlertTriangle; }
   else if (pendingCount) { tone = 'sync'; text = `Enviando ${pendingCount}…`; Icon = RefreshCw; }
-  else if (realtime === 'polling') { tone = 'poll'; text = 'En línea · actualiza cada 8 s'; Icon = Wifi; }
+  else if (realtime === 'polling') { tone = 'poll'; text = 'En línea'; detail = ' · actualiza cada 8 s'; Icon = Wifi; }
   else if (realtime === 'connecting') { tone = 'poll'; text = 'Conectando…'; Icon = Wifi; }
-  else if (realtime === 'live') { text = 'En línea · tiempo real'; }
+  else if (realtime === 'live') { text = 'En línea'; detail = ' · tiempo real'; }
 
   const cls = {
     ok: dark ? 'bg-emerald-900/60 text-emerald-200 ring-emerald-700' : 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -32,11 +33,11 @@ export function SyncIndicator({ dark }: { dark?: boolean }) {
       <button
         onClick={() => setOpen(true)}
         className={cx('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset', cls)}
-        aria-label={`Sincronización: ${text}`}
+        aria-label={`Sincronización: ${text}${detail}`}
         data-testid="sync-indicator"
       >
         <Icon className={cx('h-3.5 w-3.5', tone === 'sync' && 'animate-spin')} aria-hidden />
-        {text}
+        <span className="whitespace-nowrap">{text}<span className="hidden md:inline">{detail}</span></span>
       </button>
       <SyncPanel open={open} onClose={() => setOpen(false)} />
     </>

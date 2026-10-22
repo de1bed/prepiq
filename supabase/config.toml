@@ -1,0 +1,40 @@
+# Configuración para Supabase CLI (desarrollo local con `supabase start`).
+# En la nube, los mismos archivos de supabase/migrations se aplican con
+# `supabase link --project-ref <ref>` y `supabase db push`.
+project_id = "prepiq"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[db.seed]
+# Solo local: datos ficticios de demostración. `db push` NO ejecuta la semilla.
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# En producción activa la confirmación por correo.
+enable_confirmations = false

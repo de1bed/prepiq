@@ -46,6 +46,7 @@ function OrderList() {
   const [scope, setScope] = useState<'mias' | 'todas'>('mias');
   const { data: orders, isLoading } = useOrders({ status: 'abierta' });
   const { data: staff } = useStaff();
+  const { data: stations } = useStations();
   const drafts = useDrafts(restaurant!.id);
   const pending = usePendingOrders();
   const names = new Map(staff?.map((s) => [s.id, s.display_name]));
@@ -112,14 +113,14 @@ function OrderList() {
         </EmptyState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((o) => <OrderCard key={o.id} order={o} serverName={names.get(o.server_staff_id ?? '')} onOpen={() => nav(`/mesero/orden/${o.id}`)} tz={restaurant!.timezone} />)}
+          {visible.map((o) => <OrderCard key={o.id} order={o} serverName={names.get(o.server_staff_id ?? '')} stationName={(id) => stations?.find((st) => st.id === id)?.name ?? ''} onOpen={() => nav(`/mesero/orden/${o.id}`)} tz={restaurant!.timezone} />)}
         </div>
       )}
     </div>
   );
 }
 
-function OrderCard({ order, serverName, onOpen, tz }: { order: OrderWithItems; serverName?: string; onOpen: () => void; tz: string }) {
+function OrderCard({ order, serverName, onOpen, tz, stationName }: { order: OrderWithItems; serverName?: string; onOpen: () => void; tz: string; stationName: (id: string) => string }) {
   const live = order.tickets.filter((t) => t.status !== 'anulado');
   const ready = live.filter((t) => t.status === 'listo').length;
   const pendingLines = order.items.filter((i) => i.status === 'pendiente').length;
@@ -134,7 +135,7 @@ function OrderCard({ order, serverName, onOpen, tz }: { order: OrderWithItems; s
           {ready > 0 && <Badge tone="green"><Bell className="h-3 w-3" />{ready} listo(s)</Badge>}
         </div>
         <div className="mt-3 flex flex-wrap gap-1">
-          {live.map((t) => <Badge key={t.id} tone={t.blocked ? 'red' : TICKET_TONE[t.status]}>{t.blocked ? 'Faltante' : TICKET_TEXT[t.status]}{t.course > 1 ? ` · T${t.course}` : ''}</Badge>)}
+          {live.map((t) => <Badge key={t.id} tone={t.blocked ? 'red' : TICKET_TONE[t.status]}>{stationName(t.station_id)}: {t.blocked ? 'faltante' : TICKET_TEXT[t.status].toLowerCase()}{t.course > 1 ? ` · T${t.course}` : ''}</Badge>)}
           {pendingLines > 0 && <Badge tone="slate">{pendingLines} sin enviar</Badge>}
         </div>
       </Card>

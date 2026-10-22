@@ -4,7 +4,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
-import { rpc } from '@/lib/rpc';
+import { rpc, RpcError } from '@/lib/rpc';
 import type { DeviceContext, MyContexts, Permission, RestaurantSettings, StaffContext } from '@/lib/types';
 
 export interface Operator {
@@ -52,6 +52,7 @@ interface AppState {
 const Ctx = createContext<AppState | null>(null);
 const ACTIVE_KEY = 'prepiq-active-restaurant';
 const OPERATOR_KEY = 'prepiq-operator';
+const CONTEXTS_KEY = 'prepiq-contexts-cache';
 
 function safeGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -80,8 +81,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const c = await rpc<MyContexts>('rpc_my_contexts');
       setContexts(c);
       setError(null);
+      safeSet(CONTEXTS_KEY, JSON.stringify(c));
       return c;
     } catch (e) {
+      // Sin conexión: se arranca con los últimos contextos conocidos de esta
+      // cuenta para que cocina pueda seguir trabajando (el servidor valida todo).
+      if (e instanceof RpcError && e.appError.kind === 'network') {
+        const { data } = await supabase.auth.getSession();
+        const raw = safeGet(CONTEXTS_KEY);
+        const cached = raw ? (JSON.parse(raw) as MyContexts) : null;
+        if (cached && cached.user_id === data.session?.user.id) {
+          setContexts(cached);
+          return cached;
+        }
+      }
       setError(e instanceof Error ? e.message : String(e));
       return null;
     }
@@ -159,6 +172,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       try { await rpc('rpc_device_logout', { p_token: operator.token }); } catch { /* sin red: expira solo */ }
     }
     setOperator(null);
+    safeSet(CONTEXTS_KEY, null);
+    try { localStorage.removeItem('prepiq-query-cache'); } catch { /* sin almacenamiento */ }
     await supabase.auth.signOut();
   }, [operator, setOperator]);
 

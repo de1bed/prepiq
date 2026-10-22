@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, prepiq-v2]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos (TypeScript estricto)
+        run: npx tsc -p tsconfig.json --noEmit
+      - name: Pruebas unitarias
+        run: npx vitest run
+      - name: Migraciones + pruebas SQL de criterios críticos
+        run: dev/test-db.sh
+      - name: Build de producción
+        run: npx vite build
+        env:
+          VITE_SUPABASE_URL: https://ejemplo.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder

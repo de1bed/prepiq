@@ -7,7 +7,7 @@ import { errorText } from '@/lib/errors';
 import { unitOptionsFor, useIngredients, useMenu } from '@/data/hooks';
 import { useApp } from '@/state/session';
 import { formatQty } from '@/lib/format';
-import { Badge, Button, Card, EmptyState, Field, Input, Select, Spinner, Textarea, cx, useToast } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, Field, Input, Select, Spinner, Tabs, Textarea, cx, useToast } from '@/components/ui';
 import type { Recipe, RecipeLine, RecipeVersion } from '@/lib/types';
 import { useConfigWrite } from './crud';
 
@@ -17,6 +17,73 @@ import { useConfigWrite } from './crud';
  * Las versiones usadas se conservan: el historial de consumo no cambia.
  */
 export function RecipesAdmin() {
+  const [tab, setTab] = useState<'recetas' | 'modificadores'>('recetas');
+  return (
+    <>
+      <Tabs value={tab} onChange={setTab} className="mb-4" tabs={[{ value: 'recetas', label: 'Recetas' }, { value: 'modificadores', label: 'Efecto de modificadores' }]} />
+      {tab === 'recetas' ? <RecipesList /> : <ModifierInventory />}
+    </>
+  );
+}
+
+/** "Extra queso" suma queso; "sin cebolla" resta la cebolla de la receta. */
+function ModifierInventory() {
+  const { restaurant } = useApp();
+  const rid = restaurant!.id;
+  const { data: menu } = useMenu();
+  const { data: ingData } = useIngredients();
+  const w = useConfigWrite(['modifier-inventory']);
+  const { data: lines } = useQuery({
+    queryKey: ['modifier-inventory', rid],
+    queryFn: () => read<{ id: string; modifier_id: string; ingredient_id: string; qty: number; unit: string }[]>(
+      supabase.from('modifier_inventory_lines').select('id, modifier_id, ingredient_id, qty, unit').eq('restaurant_id', rid)),
+  });
+  const [form, setForm] = useState<Record<string, { ingredient_id: string; qty: string; unit: string; sign: 1 | -1 }>>({});
+  if (!menu || !ingData) return <Spinner />;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-600">Por cada unidad del platillo. Usa <b>Resta</b> para "sin …" (nunca baja de cero). Los modificadores sin efecto no cambian el consumo.</p>
+      {menu.groups.map((g) => (
+        <Card key={g.id} className="p-4">
+          <h3 className="mb-2 font-semibold">{g.name}</h3>
+          {menu.modifiers.filter((m) => m.group_id === g.id).map((m) => {
+            const f = form[m.id] ?? { ingredient_id: '', qty: '', unit: '', sign: 1 as const };
+            const ing = ingData.ingredients.find((i) => i.id === f.ingredient_id);
+            return (
+              <div key={m.id} className="border-t py-2 first:border-0">
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="min-w-[140px] font-medium">{m.name}</span>
+                  {(lines ?? []).filter((l) => l.modifier_id === m.id).map((l) => (
+                    <Badge key={l.id} tone={Number(l.qty) < 0 ? 'red' : 'green'}>
+                      {Number(l.qty) > 0 ? '+' : ''}{Number(l.qty)} {l.unit} {ingData.ingredients.find((i) => i.id === l.ingredient_id)?.name}
+                      <button className="ml-1" aria-label="Quitar" onClick={() => void w.remove('modifier_inventory_lines', l.id, '')}>×</button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="grid grid-cols-[110px_2fr_1fr_1fr_auto] gap-2">
+                  <Select value={f.sign} onChange={(e) => setForm({ ...form, [m.id]: { ...f, sign: Number(e.target.value) as 1 | -1 } })}><option value={1}>Suma</option><option value={-1}>Resta</option></Select>
+                  <Select value={f.ingredient_id} onChange={(e) => setForm({ ...form, [m.id]: { ...f, ingredient_id: e.target.value, unit: ingData.ingredients.find((i) => i.id === e.target.value)?.base_unit ?? '' } })}>
+                    <option value="">Insumo…</option>{ingData.ingredients.filter((i) => i.active).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </Select>
+                  <Input inputMode="decimal" placeholder="Cantidad" value={f.qty} onChange={(e) => setForm({ ...form, [m.id]: { ...f, qty: e.target.value } })} />
+                  <Select value={f.unit} onChange={(e) => setForm({ ...form, [m.id]: { ...f, unit: e.target.value } })}>
+                    {unitOptionsFor(ing, ingData.units, ingData.ingredientUnits).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </Select>
+                  <Button size="md" disabled={!f.ingredient_id || !(Number(f.qty) > 0)} onClick={async () => {
+                    if (await w.insert('modifier_inventory_lines', { restaurant_id: rid, modifier_id: m.id, ingredient_id: f.ingredient_id, qty: Number(f.qty) * f.sign, unit: f.unit }, ''))
+                      setForm({ ...form, [m.id]: { ingredient_id: '', qty: '', unit: '', sign: 1 } });
+                  }}>+</Button>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function RecipesList() {
   const { restaurant } = useApp();
   const rid = restaurant!.id;
   const { data: menu } = useMenu();
