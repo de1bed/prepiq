@@ -14,7 +14,8 @@
     "test:e2e": "dev/local-stack/up.sh && playwright test",
     "stack:up": "dev/local-stack/up.sh",
     "stack:down": "dev/local-stack/down.sh",
-    "db:reset": "dev/db-reset.sh --seed"
+    "db:reset": "dev/db-reset.sh --seed",
+    "demo": "dev/demo.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -17,7 +17,17 @@ Operación de cocina para restaurantes: **meseros → pantallas de cocina (KDS) 
 
 Garantías probadas: una orden no se pierde, el reintento no duplica, la reapertura conserva la historia, un mesero no modifica configuración, un conteo físico reconcilia diferencias, unidades y recetas coherentes, aislamiento entre restaurantes.
 
-## Empezar
+## Probarlo en tu computadora (1 comando)
+
+Requisitos: [Node 20+](https://nodejs.org) y [Docker Desktop](https://www.docker.com/products/docker-desktop/) abierto.
+
+```bash
+git clone -b prepiq-v2 https://github.com/de1bed/prepiq.git && cd prepiq
+npm run demo        # levanta Supabase local con datos demo y abre http://localhost:5173
+```
+Prueba con dos ventanas: `elena@demo.prepiq.test` (mesera) y `kds-comal@demo.prepiq.test` (cocina, PIN `3333`). Contraseña: `demo-prepiq-2026`.
+
+## Empezar (desarrollo)
 
 ```bash
 npm install
