@@ -6,7 +6,7 @@
 # Requiere Docker. No toca ningún proyecto en la nube.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE="${SUPABASE_PG_IMAGE:-supabase/postgres:15.8.1.060}"
+IMAGE="${SUPABASE_PG_IMAGE:-supabase/postgres:17.6.1.063}"
 PORT="${SUPABASE_PG_PORT:-54329}"
 NAME=prepiq-supabase-validate
 export PGPASSWORD=postgres

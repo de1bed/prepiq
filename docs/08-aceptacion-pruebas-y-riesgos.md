@@ -22,7 +22,7 @@
 ```bash
 npm run typecheck && npm test && npm run test:db && npm run test:e2e
 ```
-Última ejecución: tipos ✅ · 24 unitarias ✅ · 88 verificaciones SQL ✅ (en Postgres local **y** en la imagen oficial `supabase/postgres` ejecutando como el rol `postgres`, igual que `supabase db push`) · 8 E2E en Chromium ✅ (entorno ligero) / 9 con Realtime.
+Última ejecución: tipos ✅ · 24 unitarias ✅ · 88 verificaciones SQL ✅ (en Postgres local **y** en las imágenes oficiales `supabase/postgres` 15 y **17** ejecutando como el rol `postgres`, igual que `supabase db push`) · 8 E2E en Chromium ✅ (entorno ligero) / 9 con Realtime.
 
 Además, **9 E2E pasan contra un stack con los servicios reales de Supabase**: imagen oficial de Postgres (con su configuración, WAL lógico), **Auth (GoTrue v2.177)**, **Realtime (v2.57)** y PostgREST — incluida la prueba de tiempo real (el ticket aparece en cocina en ~1–2 s, respetando RLS). Cómo repetirlo:
 ```bash
