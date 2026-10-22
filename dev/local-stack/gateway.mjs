@@ -7,6 +7,7 @@
 // SOLO PARA DESARROLLO/PRUEBAS. En producción se usa Supabase real.
 // =====================================================================
 import http from 'node:http';
+import net from 'node:net';
 import crypto from 'node:crypto';
 import pg from 'pg';
 
@@ -151,8 +152,29 @@ const server = http.createServer(async (req, res) => {
     return send(res, 500, { msg: String(e) });
   }
 });
-// Realtime no disponible localmente: se rechaza el websocket.
-server.on('upgrade', (_req, socket) => { socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n'); });
+// Realtime: si REALTIME_URL está definido (host:puerto), se reenvía el
+// websocket como lo hace Kong en Supabase (/realtime/v1/* → /socket/*, con el
+// tenant en el Host). Si no, se rechaza y la app usa sondeo.
+const REALTIME = process.env.REALTIME_URL ?? '';
+server.on('upgrade', (req, socket, head) => {
+  if (!REALTIME || !req.url.startsWith('/realtime/v1/')) {
+    socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+    return;
+  }
+  const [host, port] = REALTIME.split(':');
+  const upstream = net.connect(Number(port), host, () => {
+    const path = req.url.replace('/realtime/v1/', '/socket/');
+    const headers = Object.entries(req.headers)
+      .filter(([k]) => k.toLowerCase() !== 'host')
+      .map(([k, v]) => `${k}: ${v}`);
+    upstream.write([`GET ${path} HTTP/1.1`, 'host: realtime-dev.localhost', ...headers, '', ''].join('\r\n'));
+    if (head?.length) upstream.write(head);
+    upstream.pipe(socket);
+    socket.pipe(upstream);
+  });
+  upstream.on('error', () => socket.destroy());
+  socket.on('error', () => upstream.destroy());
+});
 
 if (process.argv[2] === 'anon-key') {
   console.log(signJwt({ role: 'anon', iss: 'prepiq-local', iat: 1700000000, exp: 2000000000 }));

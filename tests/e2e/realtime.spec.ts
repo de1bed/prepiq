@@ -9,6 +9,9 @@ test('tiempo real: el ticket aparece en cocina sin esperar el sondeo', async ({ 
   const kds = await newPage(browser, 'kds-comal@demo.prepiq.test');
   await enterPin(kds.page, '3333');
   await expect(kds.page.getByTestId('sync-indicator')).toHaveAccessibleName(/tiempo real/, { timeout: 20_000 });
+  // El canal queda SUBSCRIBED antes de que el servidor termine de registrar
+  // la suscripción a cambios de Postgres: margen breve antes de crear la orden.
+  await kds.page.waitForTimeout(2_000);
 
   const mesero = await newPage(browser, 'elena@demo.prepiq.test');
   const m = mesero.page;

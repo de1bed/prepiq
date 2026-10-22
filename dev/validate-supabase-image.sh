@@ -12,7 +12,7 @@ NAME=prepiq-supabase-validate
 export PGPASSWORD=postgres
 
 docker rm -f "$NAME" > /dev/null 2>&1 || true
-docker run -d --name "$NAME" --network host -e POSTGRES_PASSWORD=postgres "$IMAGE" -p "$PORT" > /dev/null
+docker run -d --name "$NAME" --network host -e POSTGRES_PASSWORD=postgres "$IMAGE" postgres -D /etc/postgresql -p "$PORT" > /dev/null
 for _ in $(seq 1 60); do
   psql -h 127.0.0.1 -p "$PORT" -U postgres -d postgres -Atc "select 1" > /dev/null 2>&1 && break
   sleep 2

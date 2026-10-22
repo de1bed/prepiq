@@ -15,6 +15,8 @@ export async function login(page: Page, email: string) {
   await page.getByLabel('Correo').fill(email);
   await page.getByLabel('Contraseña').fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
+  // Esperar a que la sesión quede guardada antes de navegar.
+  await page.waitForFunction(() => !!localStorage.getItem('prepiq-auth'), undefined, { timeout: 15_000 });
 }
 
 export async function newPage(browser: Browser, email: string, opts: { stubPrint?: boolean } = {}) {
