@@ -24,3 +24,23 @@ export function beep(freq = 880, durationMs = 180) {
     o.stop(ctx.currentTime + durationMs / 1000);
   } catch { /* sin audio */ }
 }
+
+/** Mantiene la pantalla encendida (KDS, pase, reloj) mientras la página está visible. */
+export function useWakeLock() {
+  useEffect(() => {
+    type WakeLockSentinel = { release: () => Promise<void> };
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<WakeLockSentinel> } };
+    if (!nav.wakeLock) return;
+    let lock: WakeLockSentinel | null = null;
+    const acquire = () => {
+      if (document.visibilityState !== 'visible') return;
+      nav.wakeLock!.request('screen').then((l) => { lock = l; }).catch(() => undefined);
+    };
+    acquire();
+    document.addEventListener('visibilitychange', acquire);
+    return () => {
+      document.removeEventListener('visibilitychange', acquire);
+      void lock?.release().catch(() => undefined);
+    };
+  }, []);
+}

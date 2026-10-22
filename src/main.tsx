@@ -10,6 +10,7 @@ import { SyncProvider } from './state/sync';
 import { ToastProvider } from './components/ui';
 import { OverrideProvider } from './components/Pin';
 import { RpcError } from './lib/rpc';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -48,7 +49,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <SessionProvider>
             <SyncProvider>
               <OverrideProvider>
-                <App />
+                <ErrorBoundary><App /></ErrorBoundary>
               </OverrideProvider>
             </SyncProvider>
           </SessionProvider>

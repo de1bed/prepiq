@@ -11,7 +11,7 @@ import { Button, EmptyState, Modal, Spinner, cx } from '@/components/ui';
 import type { TicketWithItems } from '@/lib/types';
 import { TicketCard } from './TicketCard';
 import { AvailabilityModal, IncidentModal, ReopenDialog, TicketHistory, TicketMenu, useTicketActions } from './shared';
-import { beep, useNow } from './useNow';
+import { beep, useNow, useWakeLock } from './useNow';
 
 const SATURATION_TICKETS = 12;
 
@@ -39,6 +39,7 @@ export function KdsStationPicker() {
 }
 
 export function KdsPage() {
+  useWakeLock();
   const { stationId } = useParams();
   const nav = useNavigate();
   const { restaurant, device } = useApp();

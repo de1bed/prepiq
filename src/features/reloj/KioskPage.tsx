@@ -9,7 +9,7 @@ import { useEnqueue, useSync } from '@/state/sync';
 import { PinPad } from '@/components/Pin';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button, Spinner } from '@/components/ui';
-import { useNow } from '../kds/useNow';
+import { useNow, useWakeLock } from '../kds/useNow';
 
 const ACTIONS: Record<string, { label: string; icon: typeof LogIn; tone: string }> = {
   entrada: { label: 'Registrar entrada', icon: LogIn, tone: 'bg-emerald-600 hover:bg-emerald-500' },
@@ -30,6 +30,7 @@ interface Status {
  * guardan con la hora del dispositivo y el servidor las marca para revisión.
  */
 export function KioskPage() {
+  useWakeLock();
   const { restaurant, device, staff, signOut } = useApp();
   const enqueue = useEnqueue();
   const { online } = useSync();

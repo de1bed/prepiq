@@ -12,10 +12,11 @@ import { ORDER_TYPE_LABELS } from '@/lib/format';
 import type { TicketWithItems } from '@/lib/types';
 import { TicketCard } from './TicketCard';
 import { ReopenDialog, TicketHistory, TicketMenu, useTicketActions } from './shared';
-import { useNow } from './useNow';
+import { useNow, useWakeLock } from './useNow';
 
 /** Pase (expo): todas las estaciones, agrupado por orden; despacha cuando todo está listo. */
 export function ExpoPage() {
+  useWakeLock();
   const nav = useNavigate();
   const { restaurant, device } = useApp();
   const { ops } = useSync();
