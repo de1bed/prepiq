@@ -36,7 +36,7 @@ Producción en Supabase: ver [docs/04-arquitectura-y-despliegue.md](docs/04-arqu
 ```bash
 npm run typecheck   # TypeScript estricto
 npm test            # unitarias (cola sin conexión, KDS, zonas horarias, importación)
-npm run test:db     # migraciones + 85 verificaciones SQL de criterios críticos
+npm run test:db     # migraciones + 88 verificaciones SQL de criterios críticos
 npm run test:e2e    # navegador real (Playwright): 8 flujos de punta a punta (incluye alta de restaurante y unión con código)
 ```
 

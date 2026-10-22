@@ -22,7 +22,9 @@
 ```bash
 npm run typecheck && npm test && npm run test:db && npm run test:e2e
 ```
-Última ejecución: tipos ✅ · 24 unitarias ✅ · 85 verificaciones SQL ✅ · 8 E2E en Chromium ✅.
+Última ejecución: tipos ✅ · 24 unitarias ✅ · 88 verificaciones SQL ✅ (en Postgres local **y** en la imagen oficial `supabase/postgres` ejecutando como el rol `postgres`, igual que `supabase db push`) · 8 E2E en Chromium ✅.
+
+> Lo que aún **no** se ha probado: un proyecto real de Supabase en la nube (Auth/Realtime gestionados) y hardware del restaurante (tabletas, impresora). Ver §8.2.
 
 ## 8.2 Pruebas manuales recomendadas antes del piloto
 

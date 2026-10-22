@@ -18,11 +18,12 @@ begin
   select id into v from auth.users where email = p_email;
   if v is null then raise exception 'usuario de prueba no existe: %', p_email; end if;
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v, 'role', 'authenticated')::text, false);
+  perform set_config('request.jwt.claim.sub', v::text, false);
   return v;
 end $$;
 
 create or replace function pg_temp.logout() returns void language sql as $$
-  select set_config('request.jwt.claims', '', false)
+  select set_config('request.jwt.claims', '', false), set_config('request.jwt.claim.sub', '', false)
 $$;
 
 create or replace function pg_temp.ok(p_cond boolean, p_msg text) returns void language plpgsql as $$

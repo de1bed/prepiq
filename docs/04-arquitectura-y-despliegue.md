@@ -134,7 +134,8 @@ Cuentas demo (contraseña `demo-prepiq-2026`): `ana@` (admin), `beto@` (gerente)
 ```bash
 npm run typecheck   # TypeScript estricto
 npm test            # pruebas unitarias (cola offline, KDS, zonas horarias, importación)
-npm run test:db     # migraciones + 85 verificaciones SQL de criterios críticos
+npm run test:db     # migraciones + 88 verificaciones SQL de criterios críticos
 npm run test:e2e    # navegador real: pedido→cocina→entrega, reintentos, sin conexión, roles…
+dev/validate-supabase-image.sh   # migraciones + semilla + pruebas sobre la imagen OFICIAL de Postgres de Supabase, como rol postgres
 ```
 La integración continua (`.github/workflows/ci.yml`) corre tipos, unitarias, SQL y build en cada push.

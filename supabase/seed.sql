@@ -58,7 +58,9 @@ declare
   rec uuid; ver uuid; wk timestamptz; d int;
 begin
   -- Contexto de "Ana" para que las RPC registren actor.
+  -- Ambas variables: auth.uid() de Supabase lee claim.sub (antiguo) o claims (actual).
   perform set_config('request.jwt.claims', jsonb_build_object('sub', u_ana, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', u_ana::text, true);
   v := public.rpc_create_restaurant('Grupo Demo (ficticio)', 'Taquería Demo', 'Ana', 'America/Mexico_City', 'MXN');
   r := (v->>'restaurant_id')::uuid; org := (v->>'organization_id')::uuid; st_ana := (v->>'staff_id')::uuid;
   update public.restaurants set is_demo = true, settings = jsonb_build_object(
@@ -291,6 +293,7 @@ begin
 
   -- Dos órdenes de ejemplo para que el KDS no arranque vacío.
   perform set_config('request.jwt.claims', jsonb_build_object('sub', u_elena, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', u_elena::text, true);
   perform public.rpc_order_submit(gen_random_uuid(), r, null, jsonb_build_object(
     'id', gen_random_uuid(), 'order_type', 'mesa', 'table_label', '4', 'guest_count', 2,
     'items', jsonb_build_array(
@@ -309,5 +312,6 @@ begin
     )), 'todo');
 
   perform set_config('request.jwt.claims', '', true);
+  perform set_config('request.jwt.claim.sub', '', true);
   raise notice 'Restaurante demo creado: %', r;
 end $$;

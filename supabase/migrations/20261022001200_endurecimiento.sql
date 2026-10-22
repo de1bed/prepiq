@@ -71,3 +71,18 @@ create trigger inventory_movements_manual_guard before insert on public.inventor
 revoke execute on all functions in schema app from public, anon, authenticated;
 grant execute on function app.is_member(uuid), app.has_perm(uuid, text), app.my_staff_id(uuid),
   app.is_org_admin(uuid), app.staff_has_perm(uuid, text), app.m(uuid), app.p(uuid, text) to authenticated;
+
+-- search_path fijo en todas las funciones propias (recomendación del asesor
+-- de seguridad de Supabase: "function_search_path_mutable").
+do $$
+declare f record;
+begin
+  for f in
+    select p.oid::regprocedure as sig
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public', 'app') and p.prokind = 'f'
+      and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')
+  loop
+    execute format('alter function %s set search_path = public, app, extensions, pg_temp', f.sig);
+  end loop;
+end $$;
