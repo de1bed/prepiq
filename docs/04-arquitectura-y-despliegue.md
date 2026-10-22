@@ -97,6 +97,15 @@ docs/                  este documento y los demás entregables
 9. **Configurar:** Administración → Restaurante (zona horaria, hora de corte, lenguaje de cocina) → Estaciones → Menú (o Importar CSV) → Insumos → Recetas → Personal (PIN) → Etiquetas (formatos y reglas validadas).
 10. **Dispositivos:** para cada tableta/terminal/reloj crea una cuenta (correo del equipo), inicia sesión en el dispositivo, *Unirme con código → Es un dispositivo*, y apruébalo en *Administración → Dispositivos* eligiendo su modo y estación. Recomendado: modo quiosco/pantalla completa del sistema y "Agregar a pantalla de inicio" (PWA).
 
+### 4.3.1 Estado del proyecto `ptbqyymhwmfotfxupvzk` (22 oct 2026)
+
+- Esquema completo instalado con el conector de Supabase (Postgres 17.11): 54 tablas, RLS en todas las de `public`, 70 políticas, 91 triggers, Realtime en 9 tablas. **Sin datos demo** (no se ejecutó `seed.sql`).
+- Prueba de humo en el proyecto real, dentro de una transacción revertida: alta de restaurante → PIN → orden → ticket → iniciar/listo/entregar → reintento con el mismo `op_id` (marcado como repetido, sin duplicar). Resultado: 1 orden, 1 ticket, 4 eventos, auditoría registrada. No quedó ningún dato.
+- Privilegios verificados: `anon` no lee tablas ni ejecuta funciones; `authenticated` no inserta órdenes ni edita historiales directamente.
+- **Pendiente:** `rpc_staff_clear_pin` y `app.housekeeping` (contienen `DELETE` y el conector exige confirmación manual). Pegar [`supabase/pendiente-sql-editor.sql`](../supabase/pendiente-sql-editor.sql) en *SQL Editor*.
+- El historial de migraciones del proyecto usa nombres propios (p. ej. `ordenes_kds_1_tablas`) y fechas de aplicación, no los archivos de `supabase/migrations/`. Antes de usar `supabase db push` en este proyecto, revisar `supabase migration list` y alinear con `supabase migration repair`; si no, la CLI intentará aplicar todo otra vez.
+- Asesor de seguridad: solo avisa que usuarios con sesión pueden ejecutar funciones `security definer`. Es intencional: son las RPC y cada una valida permiso y restaurante. Asesor de rendimiento: avisos informativos (índices sin uso porque no hay datos; 5 políticas que podrían envolver `auth.uid()` en `select`), sin impacto con el volumen de un piloto.
+
 ## 4.4 Copias de seguridad y recuperación
 
 - Supabase hace copias diarias en planes de pago; **PITR** (recuperación a un punto en el tiempo) es opcional. [P] Elegir plan según el piloto.
