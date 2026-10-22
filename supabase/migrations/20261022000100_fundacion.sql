@@ -361,10 +361,15 @@ end $$;
 
 -- Contexto de una operación: quién la hace (persona) y desde dónde (dispositivo).
 -- En un dispositivo compartido se requiere token de operador (sesión por PIN).
-create or replace function app.resolve_actor(p_restaurant uuid, p_token uuid)
+-- p_grace: para operaciones que pueden llegar tarde por falta de conexión
+-- (marcas de asistencia), acepta una sesión ya cerrada/vencida si inició
+-- dentro de esa ventana; la RPC valida que la hora de la acción caiga dentro
+-- de la sesión (session_started_at / session_ended_at en el contexto).
+create or replace function app.resolve_actor(p_restaurant uuid, p_token uuid, p_grace interval default null)
 returns jsonb language plpgsql security definer set search_path = public, app, pg_temp as $$
 declare
   v_dev public.devices;
+  v_ds app.device_sessions;
   v_staff uuid;
 begin
   if auth.uid() is null then perform app.fail('no_autenticado'); end if;
@@ -373,15 +378,18 @@ begin
     if p_token is null then
       perform app.fail('operador_requerido', null, 'Identifícate con tu PIN en este dispositivo.');
     end if;
-    select ds.staff_id into v_staff from app.device_sessions ds
+    select ds.* into v_ds from app.device_sessions ds
     join public.staff s on s.id = ds.staff_id and s.active
-    where ds.id = p_token and ds.device_id = v_dev.id and ds.ended_at is null and ds.expires_at > now();
-    if v_staff is null then
+    where ds.id = p_token and ds.device_id = v_dev.id
+      and ((ds.ended_at is null and ds.expires_at > now())
+           or (p_grace is not null and ds.started_at > now() - p_grace));
+    if v_ds.id is null then
       perform app.fail('sesion_operador_expirada', null, 'Vuelve a ingresar tu PIN.');
     end if;
     update public.devices set last_seen_at = now() where id = v_dev.id
       and (last_seen_at is null or last_seen_at < now() - interval '1 minute');
-    return jsonb_build_object('staff_id', v_staff, 'device_id', v_dev.id);
+    return jsonb_build_object('staff_id', v_ds.staff_id, 'device_id', v_dev.id,
+      'session_started_at', v_ds.started_at, 'session_ended_at', least(coalesce(v_ds.ended_at, v_ds.expires_at), v_ds.expires_at));
   end if;
   v_staff := app.my_staff_id(p_restaurant);
   if v_staff is null then perform app.fail('sin_acceso_restaurante'); end if;
@@ -404,10 +412,11 @@ create table app.override_grants (
 );
 
 -- Resuelve actor y exige permiso; acepta un pase de autorización vigente.
-create or replace function app.authorize(p_restaurant uuid, p_token uuid, p_perm text, p_override uuid default null)
+create or replace function app.authorize(p_restaurant uuid, p_token uuid, p_perm text, p_override uuid default null,
+  p_grace interval default null)
 returns jsonb language plpgsql security definer set search_path = public, app, pg_temp as $$
 declare
-  v_ctx jsonb := app.resolve_actor(p_restaurant, p_token);
+  v_ctx jsonb := app.resolve_actor(p_restaurant, p_token, p_grace);
   v_grant app.override_grants;
 begin
   if app.staff_has_perm((v_ctx->>'staff_id')::uuid, p_perm) then

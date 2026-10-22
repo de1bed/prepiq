@@ -272,8 +272,19 @@ declare
 begin
   v_prev := app.op_begin(p_op_id, p_restaurant_id, 'punch');
   if v_prev is not null then return v_prev; end if;
-  v_ctx := app.authorize(p_restaurant_id, p_actor_token, 'attendance.self');
+  -- Ventana de gracia: una marca capturada sin conexión puede llegar después
+  -- de que se cerró la sesión de PIN del reloj; debe haberse hecho durante ella.
+  v_ctx := app.authorize(p_restaurant_id, p_actor_token, 'attendance.self', null, interval '12 hours');
   v_staff := (v_ctx->>'staff_id')::uuid;
+  if (v_ctx->>'session_started_at') is not null then
+    if p_client_at is null and (v_ctx->>'session_ended_at')::timestamptz < now() then
+      perform app.fail('sesion_operador_expirada');
+    end if;
+    if p_client_at is not null and (p_client_at < (v_ctx->>'session_started_at')::timestamptz - interval '1 minute'
+        or p_client_at > (v_ctx->>'session_ended_at')::timestamptz + interval '1 minute') then
+      perform app.fail('hora_fuera_de_sesion', null, 'La marca no corresponde a la sesión de PIN.');
+    end if;
+  end if;
   if (v_ctx->>'device_id') is null and not app.setting_bool(p_restaurant_id, 'allow_personal_punch', false) then
     perform app.fail('marcar_solo_en_kiosko', null, 'Registra tu entrada en el reloj del restaurante.');
   end if;
