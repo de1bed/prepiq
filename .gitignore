@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+*.log
+test-results
+playwright-report
+.vite
+coverage
+supabase/.branches
+supabase/.temp
