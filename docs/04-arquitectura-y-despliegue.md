@@ -99,6 +99,8 @@ docs/                  este documento y los demás entregables
 
 ### 4.3.1 Estado del proyecto `ptbqyymhwmfotfxupvzk` (22 oct 2026)
 
+- **App publicada:** https://prepiq-xi.vercel.app (Vercel, proyecto `prepiq`, rama `prepiq-v2`, variables `VITE_SUPABASE_*` configuradas). La rama de producción de Vercel por defecto es `main` (piloto anterior): cambiarla a `prepiq-v2` en *Settings → Environments → Production → Branch Tracking* para que cada push publique la versión nueva.
+
 - Esquema completo instalado con el conector de Supabase (Postgres 17.11): 54 tablas, RLS en todas las de `public`, 70 políticas, 91 triggers, Realtime en 9 tablas. **Sin datos demo** (no se ejecutó `seed.sql`).
 - Prueba de humo en el proyecto real, dentro de una transacción revertida: alta de restaurante → PIN → orden → ticket → iniciar/listo/entregar → reintento con el mismo `op_id` (marcado como repetido, sin duplicar). Resultado: 1 orden, 1 ticket, 4 eventos, auditoría registrada. No quedó ningún dato.
 - Privilegios verificados: `anon` no lee tablas ni ejecuta funciones; `authenticated` no inserta órdenes ni edita historiales directamente.
