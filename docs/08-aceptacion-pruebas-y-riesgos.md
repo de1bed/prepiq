@@ -24,7 +24,11 @@ npm run typecheck && npm test && npm run test:db && npm run test:e2e
 ```
 Última ejecución: tipos ✅ · 24 unitarias ✅ · 88 verificaciones SQL ✅ (en Postgres local **y** en la imagen oficial `supabase/postgres` ejecutando como el rol `postgres`, igual que `supabase db push`) · 8 E2E en Chromium ✅.
 
-> Lo que aún **no** se ha probado: un proyecto real de Supabase en la nube (Auth/Realtime gestionados) y hardware del restaurante (tabletas, impresora). Ver §8.2.
+Además, las 8 E2E pasan con **Auth real de Supabase (GoTrue v2.177)** sobre la imagen oficial de Postgres de Supabase (`dev/real-auth-stack.sh up` y `E2E_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54330/postgres npx playwright test`).
+
+> Lo que aún **no** se ha probado:
+> - **Realtime de Supabase**: su contenedor no arranca en la máquina donde se construyó (sin IPv6). La app tiene sondeo de respaldo (cada 8 s) y una prueba lista (`tests/e2e/realtime.spec.ts`, `E2E_REALTIME=1`) para correr con `supabase start` en una máquina normal o contra el proyecto en la nube.
+> - Un proyecto real en la nube y el hardware del restaurante (tabletas, impresora). Ver §8.2.
 
 ## 8.2 Pruebas manuales recomendadas antes del piloto
 

@@ -13,6 +13,8 @@ import pg from 'pg';
 const PORT = Number(process.env.GATEWAY_PORT ?? 54321);
 const POSTGREST = process.env.POSTGREST_URL ?? 'http://127.0.0.1:3000';
 const SECRET = process.env.JWT_SECRET ?? 'prepiq-local-dev-secret-at-least-32-characters';
+// Si se define GOTRUE_URL, /auth/v1 se envía al GoTrue real en vez del simulado.
+const GOTRUE = process.env.GOTRUE_URL ?? '';
 const DB = process.env.DATABASE_URL ?? 'postgres://root@/prepiq_e2e?host=/var/run/postgresql';
 const pool = new pg.Pool({ connectionString: DB });
 
@@ -119,8 +121,8 @@ async function handleAuth(req, res, url) {
   return send(res, 404, { msg: `auth simulado: ${path} no implementado` });
 }
 
-function proxyRest(req, res, url) {
-  const target = new URL(POSTGREST + url.pathname.replace('/rest/v1', '') + url.search);
+function proxyRest(req, res, url, base = POSTGREST, prefix = '/rest/v1') {
+  const target = new URL(base + url.pathname.replace(prefix, '') + url.search);
   const headers = { ...req.headers };
   delete headers.host;
   // Igual que Supabase: si no hay Authorization, usar la apikey (rol anon).
@@ -137,7 +139,10 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (req.method === 'OPTIONS') { res.writeHead(204, cors()); return res.end(); }
   try {
-    if (url.pathname.startsWith('/auth/v1')) return await handleAuth(req, res, url);
+    if (url.pathname.startsWith('/auth/v1')) {
+      if (GOTRUE) return proxyRest(req, res, url, GOTRUE, '/auth/v1');
+      return await handleAuth(req, res, url);
+    }
     if (url.pathname.startsWith('/rest/v1')) return proxyRest(req, res, url);
     if (url.pathname === '/health') return send(res, 200, { ok: true });
     return send(res, 404, { msg: 'no encontrado' });
