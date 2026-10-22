@@ -137,7 +137,7 @@ npm test            # pruebas unitarias (cola offline, KDS, zonas horarias, impo
 npm run test:db     # migraciones + 88 verificaciones SQL de criterios críticos
 npm run test:e2e    # navegador real: pedido→cocina→entrega, reintentos, sin conexión, roles…
 dev/validate-supabase-image.sh   # migraciones + semilla + pruebas sobre la imagen OFICIAL de Postgres de Supabase, como rol postgres
-dev/real-auth-stack.sh up        # Postgres de Supabase + GoTrue (Auth real) + PostgREST para correr la app/E2E
-E2E_REALTIME=1 npx playwright test realtime   # con `supabase start` completo: verifica tiempo real
+WITH_REALTIME=1 dev/real-auth-stack.sh up   # Postgres + Auth (GoTrue) + Realtime oficiales de Supabase + PostgREST
+E2E_REALTIME=1 E2E_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54330/postgres npx playwright test
 ```
 La integración continua (`.github/workflows/ci.yml`) corre tipos, unitarias, SQL y build en cada push.

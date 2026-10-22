@@ -132,16 +132,26 @@ test('roles: el mesero no entra a administración ni ve reportes', async ({ brow
 test('cocina: reabrir exige motivo y conserva el historial', async ({ browser }) => {
   const { ctx, page } = await newPage(browser, 'kds-parrilla@demo.prepiq.test');
   await enterPin(page, '4444');
+  await expect(page.getByTestId('kds-station')).toHaveText('Parrilla');
+  // Autosuficiente: si no hay un ticket terminado reciente, se marca uno listo.
+  const ready = await q(`select k.id from kitchen_tickets k join stations s on s.id = k.station_id
+    where s.name = 'Parrilla' and k.status in ('listo','entregado')`);
+  if (ready.length === 0) {
+    await page.getByTestId('ticket-bump').first().click();
+    await expect.poll(async () => (await q(`select k.id from kitchen_tickets k join stations s on s.id = k.station_id
+      where s.name = 'Parrilla' and k.status = 'listo'`)).length).toBeGreaterThan(0);
+  }
+  const before = await q(`select id from ticket_events where action = 'reabrir'`);
   await page.getByTestId('kds-recent').click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByTestId('ticket-reopen').first().click();
+  await page.getByRole('dialog').getByTestId('ticket-reopen').first().click();
   const reasonDialog = page.getByRole('dialog');
   await expect(reasonDialog.getByTestId('reason-confirm')).toBeDisabled();
   await reasonDialog.getByRole('button', { name: 'Error de preparación' }).click();
   await reasonDialog.getByTestId('reason-confirm').click();
-  await expectSynced(page);
-  const ev = await q<{ action: string }>(`select e.action from ticket_events e where e.action = 'reabrir'`);
-  expect(ev.length).toBeGreaterThanOrEqual(1);
+  await expect.poll(async () => (await q(`select id from ticket_events where action = 'reabrir'`)).length).toBe(before.length + 1);
+  const ev = await q<{ reason: string; staff: string }>(`select e.reason, s.display_name as staff from ticket_events e
+    join staff s on s.id = e.staff_id where e.action = 'reabrir' order by e.at desc limit 1`);
+  expect(ev[0]).toMatchObject({ reason: 'error_preparacion', staff: 'Diego' });
   const remake = await q(`select id from inventory_movements where kind = 'reproceso'`);
   expect(remake.length).toBeGreaterThan(0);
   await ctx.close();

@@ -22,13 +22,17 @@
 ```bash
 npm run typecheck && npm test && npm run test:db && npm run test:e2e
 ```
-Última ejecución: tipos ✅ · 24 unitarias ✅ · 88 verificaciones SQL ✅ (en Postgres local **y** en la imagen oficial `supabase/postgres` ejecutando como el rol `postgres`, igual que `supabase db push`) · 8 E2E en Chromium ✅.
+Última ejecución: tipos ✅ · 24 unitarias ✅ · 88 verificaciones SQL ✅ (en Postgres local **y** en la imagen oficial `supabase/postgres` ejecutando como el rol `postgres`, igual que `supabase db push`) · 8 E2E en Chromium ✅ (entorno ligero) / 9 con Realtime.
 
-Además, las 8 E2E pasan con **Auth real de Supabase (GoTrue v2.177)** sobre la imagen oficial de Postgres de Supabase (`dev/real-auth-stack.sh up` y `E2E_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54330/postgres npx playwright test`).
+Además, **9 E2E pasan contra un stack con los servicios reales de Supabase**: imagen oficial de Postgres (con su configuración, WAL lógico), **Auth (GoTrue v2.177)**, **Realtime (v2.57)** y PostgREST — incluida la prueba de tiempo real (el ticket aparece en cocina en ~1–2 s, respetando RLS). Cómo repetirlo:
+```bash
+WITH_REALTIME=1 dev/real-auth-stack.sh up
+E2E_REALTIME=1 E2E_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54330/postgres npx playwright test
+dev/real-auth-stack.sh down
+```
+(En la máquina de construcción no hay IPv6; el script monta una configuración IPv4 para Realtime. En Supabase en la nube no aplica.)
 
-> Lo que aún **no** se ha probado:
-> - **Realtime de Supabase**: su contenedor no arranca en la máquina donde se construyó (sin IPv6). La app tiene sondeo de respaldo (cada 8 s) y una prueba lista (`tests/e2e/realtime.spec.ts`, `E2E_REALTIME=1`) para correr con `supabase start` en una máquina normal o contra el proyecto en la nube.
-> - Un proyecto real en la nube y el hardware del restaurante (tabletas, impresora). Ver §8.2.
+> Lo que aún **no** se ha probado: un proyecto real en la nube (red, límites del plan) y el hardware del restaurante (tabletas, impresora). Ver §8.2.
 
 ## 8.2 Pruebas manuales recomendadas antes del piloto
 
