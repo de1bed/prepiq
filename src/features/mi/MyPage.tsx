@@ -130,6 +130,7 @@ export function MyPage() {
             </ul>
           )}
         </Card>
+        <Availability />
       </div>
 
       <TimeOffDialog open={timeOff} onClose={() => setTimeOff(false)} onSubmit={(from, to, note) => run('rpc_time_off', { p_action: 'solicitar', p_starts_at: from, p_ends_at: to, p_note: note }, 'Solicitud enviada')} />
@@ -166,5 +167,53 @@ function SwapDialog({ shift, onClose, people, onSubmit }: { shift: Shift | null;
       <Field label="¿A quién?"><Select value={to} onChange={(e) => setTo(e.target.value)}><option value="">Cualquiera que lo tome</option>{people.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}</Select></Field>
       <Field label="Nota" className="mt-3"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
     </Modal>
+  );
+}
+
+const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+/** Disponibilidad semanal declarada por la persona (la ve el gerente al programar). */
+function Availability() {
+  const { restaurant, actor } = useApp();
+  const rid = restaurant!.id;
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { data } = useQuery({
+    queryKey: ['availability', rid, actor!.staffId],
+    queryFn: () => read<{ id: string; weekday: number; start_time: string; end_time: string; kind: string; note: string | null }[]>(
+      supabase.from('staff_availability').select('id, weekday, start_time, end_time, kind, note').eq('staff_id', actor!.staffId).order('weekday').order('start_time')),
+  });
+  const [f, setF] = useState({ weekday: 1, start: '09:00', end: '17:00', kind: 'disponible' });
+  const save = async () => {
+    const res = await supabase.from('staff_availability').insert({ restaurant_id: rid, staff_id: actor!.staffId, weekday: f.weekday, start_time: f.start, end_time: f.end, kind: f.kind });
+    if (res.error) toast('error', errorText(asAppError(res.error))); else { qc.invalidateQueries({ queryKey: ['availability'] }); toast('success', 'Guardado'); }
+  };
+  const remove = async (id: string) => {
+    const res = await supabase.from('staff_availability').delete().eq('id', id);
+    if (res.error) toast('error', errorText(asAppError(res.error))); else qc.invalidateQueries({ queryKey: ['availability'] });
+  };
+  return (
+    <Card className="p-4 lg:col-span-2">
+      <h2 className="mb-1 font-semibold">Mi disponibilidad semanal</h2>
+      <p className="mb-3 text-sm text-slate-500">Indica cuándo puedes o no puedes trabajar. Es una referencia para quien arma los horarios; no es una solicitud de ausencia.</p>
+      <ul className="mb-3 flex flex-wrap gap-2">
+        {(data ?? []).map((a) => (
+          <li key={a.id}>
+            <Badge tone={a.kind === 'disponible' ? 'green' : 'red'}>
+              {WEEKDAYS[a.weekday]} {a.start_time.slice(0, 5)}–{a.end_time.slice(0, 5)} · {a.kind === 'disponible' ? 'disponible' : 'no disponible'}
+              <button className="ml-1" aria-label="Quitar" onClick={() => void remove(a.id)}>×</button>
+            </Badge>
+          </li>
+        ))}
+        {(data ?? []).length === 0 && <li className="text-sm text-slate-400">Sin registros.</li>}
+      </ul>
+      <div className="grid gap-2 sm:grid-cols-5">
+        <Select value={f.weekday} onChange={(e) => setF({ ...f, weekday: Number(e.target.value) })}>{WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}</Select>
+        <Input type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} aria-label="Desde" />
+        <Input type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} aria-label="Hasta" />
+        <Select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}><option value="disponible">Disponible</option><option value="no_disponible">No disponible</option></Select>
+        <Button onClick={() => void save()}>Agregar</Button>
+      </div>
+    </Card>
   );
 }

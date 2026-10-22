@@ -147,6 +147,11 @@ function ShiftDialog({ value, onClose, onSaved }: { value: (Partial<Shift> & { d
     staff_id: '', role: '', station_id: '', date: '', start: '09:00', end: '17:00', break_minutes: 30, notes: '',
   });
   const [busy, setBusy] = useState(false);
+  const { data: availability } = useQuery({
+    queryKey: ['availability', restaurant!.id, 'all'],
+    queryFn: () => read<{ staff_id: string; weekday: number; start_time: string; end_time: string; kind: string }[]>(
+      supabase.from('staff_availability').select('staff_id, weekday, start_time, end_time, kind').eq('restaurant_id', restaurant!.id)),
+  });
   const key = value ? (value.id ?? `${value.staff_id}-${value.date}`) : null;
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   if (value && key !== loadedKey) {
@@ -159,6 +164,8 @@ function ShiftDialog({ value, onClose, onSaved }: { value: (Partial<Shift> & { d
   }
   if (!value) return null;
   const startAt = form.date ? zonedToUtc(form.date, form.start, tz) : null;
+  const weekday = form.date ? new Date(`${form.date}T12:00:00Z`).getUTCDay() : null;
+  const declared = (availability ?? []).filter((a) => a.staff_id === form.staff_id && a.weekday === weekday);
   let endAt = form.date ? zonedToUtc(form.date, form.end, tz) : null;
   if (startAt && endAt && endAt <= startAt) endAt = zonedToUtc(addDaysStr(form.date, 1), form.end, tz); // cruza medianoche
   const hours = startAt && endAt ? (endAt.getTime() - startAt.getTime()) / 3600_000 : 0;
@@ -208,6 +215,11 @@ function ShiftDialog({ value, onClose, onSaved }: { value: (Partial<Shift> & { d
         <Field label="Duración"><div className={cx('py-2 text-sm font-semibold', hours > 16 && 'text-red-600')}>{hours.toFixed(1)} h{hours > 16 && ' (máximo 16 h)'}</div></Field>
         <Field label="Notas" className="sm:col-span-2"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
       </div>
+      {declared.length > 0 && (
+        <p className="mt-3 rounded-lg bg-sky-50 p-2 text-xs text-sky-900">
+          Disponibilidad declarada ese día: {declared.map((a) => `${a.kind === 'disponible' ? 'disponible' : 'NO disponible'} ${a.start_time.slice(0, 5)}–${a.end_time.slice(0, 5)}`).join(' · ')}
+        </p>
+      )}
       {value.status === 'publicado' && <p className="mt-3 text-xs text-amber-700">Este turno ya está publicado: los cambios quedan en la auditoría y el equipo los verá de inmediato.</p>}
     </Modal>
   );

@@ -311,6 +311,12 @@ begin
   perform pg_temp.put('r2', r2->>'restaurant_id');
   perform pg_temp.fails(format('select public.rpc_order_submit(gen_random_uuid(), %L, null, ''{"id":"%s","order_type":"llevar"}''::jsonb, ''ninguno'')',
     pg_temp.rid(), gen_random_uuid()), 'sin_acceso_restaurante', 'no opera en restaurante ajeno');
+  -- Usar ids de otro restaurante dentro del propio tampoco funciona.
+  r2 := public.rpc_count_create(gen_random_uuid(), (pg_temp.get('r2'))::uuid, null, 'Conteo Zoe');
+  perform pg_temp.fails(format('select public.rpc_count_set_line(gen_random_uuid(), %L, null, %L, %L, 5, ''pza'')',
+    pg_temp.get('r2'), r2->>'count_id', pg_temp.ing('Tortilla de maíz')), 'restaurante_inconsistente', 'no se cruzan insumos de otro restaurante');
+  perform pg_temp.fails(format('select public.rpc_inventory_record(gen_random_uuid(), %L, null, ''merma'', null, %L, 1, null, ''caida'')',
+    pg_temp.get('r2'), pg_temp.mi('Quesadilla')), 'producto_no_existe', 'no se registran mermas con platillos ajenos');
 end $$;
 set role authenticated;
 do $$
