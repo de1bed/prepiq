@@ -11,13 +11,14 @@ import { useApp } from './session';
 import { useToast } from '@/components/ui';
 
 export type RealtimeState = 'connecting' | 'live' | 'polling';
+export type RealtimeSummary = RealtimeState | 'none';
 
 interface SyncState {
   online: boolean;
   ops: OutboxOp[];
   pendingCount: number;
   failedCount: number;
-  realtime: RealtimeState;
+  realtime: RealtimeSummary;
   setRealtime: (key: string, s: RealtimeState | null) => void;
   lastSyncAt: number | null;
   outbox: Outbox;
@@ -101,7 +102,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     });
   }, []);
   const states = Object.values(rt);
-  const realtime: RealtimeState = states.length === 0 ? 'live' : states.includes('polling') ? 'polling' : states.includes('connecting') ? 'connecting' : 'live';
+  const realtime: RealtimeSummary = states.length === 0 ? 'none' : states.includes('polling') ? 'polling' : states.includes('connecting') ? 'connecting' : 'live';
 
   const value = useMemo<SyncState>(() => ({
     online: online && !networkWaiting,

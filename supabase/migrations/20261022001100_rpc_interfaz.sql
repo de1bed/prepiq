@@ -4,8 +4,9 @@
 
 -- Estado de asistencia del operador (reloj checador): última marca,
 -- acciones válidas y turno de hoy. No expone datos de otras personas.
+-- (volatile: resolve_actor registra actividad del dispositivo)
 create or replace function public.rpc_punch_status(p_restaurant_id uuid, p_actor_token uuid default null)
-returns jsonb language plpgsql stable security definer set search_path = public, app, pg_temp as $$
+returns jsonb language plpgsql security definer set search_path = public, app, pg_temp as $$
 declare v_ctx jsonb; v_staff uuid; v_last public.time_punches; v_next text[]; v_shift public.shifts;
 begin
   v_ctx := app.resolve_actor(p_restaurant_id, p_actor_token);

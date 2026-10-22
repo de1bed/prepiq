@@ -3,7 +3,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { useMenu, useOrders, useStaff, useStations, type MenuData, type OrderWithItems } from '@/data/hooks';
+import { useLiveTables, useMenu, useOrders, useStaff, useStations, type MenuData, type OrderWithItems } from '@/data/hooks';
 import { useApp } from '@/state/session';
 import { useEnqueue, useSync } from '@/state/sync';
 import { useOverride, OperatorBadge } from '@/components/Pin';
@@ -18,6 +18,7 @@ import { getDraft, lineTotal, putDraft, removeDraft, useDrafts, type DraftLine, 
 import { ItemDialog } from './ItemDialog';
 
 export function WaiterPage() {
+  useLiveTables('mesero', ['orders', 'order_items', 'kitchen_tickets', 'menu_items'], [['orders'], ['menu']]);
   return (
     <Routes>
       <Route index element={<OrderList />} />

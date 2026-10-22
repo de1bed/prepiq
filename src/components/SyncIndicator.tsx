@@ -17,7 +17,7 @@ export function SyncIndicator({ dark }: { dark?: boolean }) {
   else if (pendingCount) { tone = 'sync'; text = `Enviando ${pendingCount}…`; Icon = RefreshCw; }
   else if (realtime === 'polling') { tone = 'poll'; text = 'En línea · actualiza cada 8 s'; Icon = Wifi; }
   else if (realtime === 'connecting') { tone = 'poll'; text = 'Conectando…'; Icon = Wifi; }
-  else { text = 'En línea · tiempo real'; }
+  else if (realtime === 'live') { text = 'En línea · tiempo real'; }
 
   const cls = {
     ok: dark ? 'bg-emerald-900/60 text-emerald-200 ring-emerald-700' : 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -50,7 +50,7 @@ export function SyncPanel({ open, onClose }: { open: boolean; onClose: () => voi
     <Modal open={open} onClose={onClose} title="Sincronización" size="lg">
       <div className="mb-4 grid gap-2 text-sm sm:grid-cols-3">
         <div className="rounded-lg bg-slate-50 p-3"><div className="text-slate-500">Conexión</div><div className="font-semibold">{online ? 'En línea' : 'Sin conexión'}</div></div>
-        <div className="rounded-lg bg-slate-50 p-3"><div className="text-slate-500">Actualización</div><div className="font-semibold">{realtime === 'live' ? 'Tiempo real' : 'Sondeo periódico'}</div></div>
+        <div className="rounded-lg bg-slate-50 p-3"><div className="text-slate-500">Actualización</div><div className="font-semibold">{realtime === 'live' ? 'Tiempo real' : realtime === 'none' ? 'Al abrir y cada 30 s' : 'Sondeo cada 8 s'}</div></div>
         <div className="rounded-lg bg-slate-50 p-3"><div className="text-slate-500">Último envío</div><div className="font-semibold">{lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString() : '—'}</div></div>
       </div>
       <p className="mb-3 text-sm text-slate-600">

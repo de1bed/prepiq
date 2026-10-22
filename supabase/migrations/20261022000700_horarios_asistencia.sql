@@ -277,7 +277,7 @@ begin
   v_ctx := app.authorize(p_restaurant_id, p_actor_token, 'attendance.self', null, interval '12 hours');
   v_staff := (v_ctx->>'staff_id')::uuid;
   if (v_ctx->>'session_started_at') is not null then
-    if p_client_at is null and (v_ctx->>'session_ended_at')::timestamptz < now() then
+    if p_client_at is null and (v_ctx->>'session_ended_at')::timestamptz <= now() then
       perform app.fail('sesion_operador_expirada');
     end if;
     if p_client_at is not null and (p_client_at < (v_ctx->>'session_started_at')::timestamptz - interval '1 minute'

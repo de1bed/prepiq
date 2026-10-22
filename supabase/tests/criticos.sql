@@ -391,6 +391,15 @@ begin
   perform public.rpc_punch(gen_random_uuid(), pg_temp.rid(), v_tok, 'salida');
   perform pg_temp.ok((select count(*) from public.time_punches where staff_id = (select id from public.staff where display_name = 'Elena')) = 4,
     'salida cierra el descanso automáticamente (4 marcas)');
+  -- Marca capturada sin conexión que llega después de cerrar la sesión del reloj.
+  r := public.rpc_device_login('6666'); v_tok := (r->>'token')::uuid;
+  perform public.rpc_device_logout(v_tok);
+  r := public.rpc_punch(gen_random_uuid(), pg_temp.rid(), v_tok, 'entrada', clock_timestamp() - interval '1 second');
+  perform pg_temp.ok((r->>'ok')::boolean, 'marca offline dentro de la sesión se acepta aunque la sesión ya cerró');
+  perform pg_temp.fails(format('select public.rpc_punch(gen_random_uuid(), %L, %L, ''salida'', now() + interval ''3 minutes'')', pg_temp.rid(), v_tok),
+    'hora_fuera_de_sesion', 'una marca fuera del horario de la sesión se rechaza');
+  perform pg_temp.fails(format('select public.rpc_punch(gen_random_uuid(), %L, %L, ''salida'')', pg_temp.rid(), v_tok),
+    'sesion_operador_expirada', 'sin hora del dispositivo, una sesión cerrada no sirve');
   -- Elena desde su cuenta personal no puede marcar (ajuste del restaurante).
   perform pg_temp.login('elena@demo.prepiq.test');
   perform pg_temp.fails(format('select public.rpc_punch(gen_random_uuid(), %L, null, ''entrada'')', pg_temp.rid()),
