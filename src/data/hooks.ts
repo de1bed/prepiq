@@ -121,7 +121,7 @@ export function useTickets(opts: { stationId?: string | null; recentMinutes?: nu
       } else {
         q = q.in('status', [...ACTIVE_TICKET_STATUSES]);
       }
-      const rows = await read<TicketWithItems[]>(q.order('created_at', { ascending: true }).limit(600));
+      const rows = await read<TicketWithItems[]>(q.order('created_at', { ascending: true }).order('id').limit(600));
       return rows.map((t) => ({ ...t, items: [...(t.items ?? [])].sort((a, b) => a.sort - b.sort) }));
     },
   });

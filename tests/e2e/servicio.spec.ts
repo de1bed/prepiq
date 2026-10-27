@@ -90,6 +90,16 @@ test('3 iguales = 3 tickets; Resumen los junta; "enviar tambiÃ©n a" otra estaciÃ
   const kds = await newPage(browser, 'kds-parrilla@demo.prepiq.test');
   const k = kds.page;
   await expect(k.getByTestId(`ticket-${order.number}`)).toHaveCount(3);
+  // Abrir pasa solo al siguiente sin abrir: tocarlo seguido abre todos, en orden y sin brincos.
+  const ids = await k.locator('[data-ticket-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ticket-id')));
+  const closed = await k.locator('[data-open="false"]').count();
+  for (let i = 0; i < closed; i++) await k.getByTestId('kds-open').click();
+  await expect(k.locator('[data-open="false"]')).toHaveCount(0);
+  await expect(k.getByTestId('kds-open')).toBeDisabled();
+  await expectSynced(k);
+  await k.reload();
+  await expect(k.locator('[data-ticket-id]').first()).toBeVisible();
+  expect(await k.locator('[data-ticket-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ticket-id')))).toEqual(ids);
   await expect(k.getByTestId('load-Comal').getByTestId('load-count')).not.toHaveText('0');
   await k.getByTestId('kds-summary').click();
   await expect(k.getByTestId('summary-Arrachera (3)').getByTestId('summary-total')).not.toHaveText(/^[012]$/);

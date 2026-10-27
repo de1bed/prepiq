@@ -46,13 +46,20 @@ export function actionLabel(key: 'bump' | 'deliver', settings?: RestaurantSettin
   return settings?.labels?.[key] || (key === 'bump' ? 'Listo' : 'Entregar');
 }
 
-/** Prioridad primero; luego el más antiguo (por momento en que se marchó). */
-export function sortTickets<T extends Pick<TicketWithItems, 'priority' | 'fired_at' | 'created_at' | 'order_number'>>(list: T[]): T[] {
+/**
+ * Prioridad primero; luego el más antiguo (por momento en que llegó).
+ * Los platillos de un mismo envío llegan a la misma hora: el desempate es
+ * fijo (línea, unidad, id) para que la lista nunca se reacomode sola.
+ */
+export function sortTickets<T extends Pick<TicketWithItems, 'id' | 'priority' | 'fired_at' | 'created_at' | 'order_number' | 'order_item_id' | 'unit_no'>>(list: T[]): T[] {
   return [...list].sort((a, b) => {
     if (a.priority !== b.priority) return a.priority ? -1 : 1;
     const ta = new Date(a.fired_at ?? a.created_at).getTime();
     const tb = new Date(b.fired_at ?? b.created_at).getTime();
-    return ta - tb || a.order_number - b.order_number;
+    return ta - tb || a.order_number - b.order_number
+      || (a.order_item_id ?? '').localeCompare(b.order_item_id ?? '')
+      || (a.unit_no ?? 0) - (b.unit_no ?? 0)
+      || a.id.localeCompare(b.id);
   });
 }
 

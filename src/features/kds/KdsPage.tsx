@@ -81,7 +81,8 @@ export function KdsPage() {
   const queue = useMemo(() => sortTickets(all.filter((t) => t.status === 'nuevo' || t.status === 'en_preparacion')), [all]);
   const done = useMemo(() => all.filter((t) => t.status === 'listo' || t.status === 'entregado' || t.status === 'anulado')
     .sort((a, b) => (b.ready_at ?? b.updated_at).localeCompare(a.ready_at ?? a.updated_at)), [all]);
-  const selected = queue.find((t) => t.id === selectedId) ?? queue[0] ?? null;
+  // Sin selección, queda seleccionado el primer ticket sin abrir: se puede tocar "Abrir" seguido.
+  const selected = queue.find((t) => t.id === selectedId) ?? queue.find((t) => t.status === 'nuevo') ?? queue[0] ?? null;
   // "Orden 675 · platillo 2 de 3": cada platillo es su propio ticket, así que una orden se repite.
   const orderPos = useMemo(() => {
     const byOrder = new Map<string, TicketWithItems[]>();
@@ -117,7 +118,16 @@ export function KdsPage() {
     seen.current = new Set([...(seen.current ?? []), ...ids]);
   }, [serverTickets, sound]);
 
-  const openSelected = () => { if (selected && selected.status === 'nuevo') void act(selected, 'iniciar'); };
+  const scrollTo = (id: string) => listRef.current?.querySelector(`[data-ticket-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  // Abrir y pasar solo al siguiente sin abrir (el de abajo; si no hay, el primero de arriba).
+  const openSelected = () => {
+    if (!selected || selected.status !== 'nuevo') return;
+    void act(selected, 'iniciar');
+    const i = queue.findIndex((t) => t.id === selected.id);
+    const next = queue.slice(i + 1).find((t) => t.status === 'nuevo') ?? queue.find((t) => t.status === 'nuevo' && t.id !== selected.id);
+    setSelectedId(next?.id ?? null);
+    if (next) scrollTo(next.id);
+  };
   const page = (dir: 1 | -1) => {
     const el = listRef.current;
     if (el) el.scrollBy({ top: dir * el.clientHeight * 0.8, behavior: 'smooth' });
@@ -127,7 +137,7 @@ export function KdsPage() {
     const i = Math.max(0, queue.findIndex((t) => t.id === selected?.id));
     const next = queue[Math.min(queue.length - 1, Math.max(0, i + dir))];
     setSelectedId(next.id);
-    listRef.current?.querySelector(`[data-ticket-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest' });
+    scrollTo(next.id);
   };
 
   // Bump-bar / teclado: ↑↓ selecciona, Enter abre (o marca listo si ya está abierto), R historial, S resumen.
@@ -138,7 +148,7 @@ export function KdsPage() {
       if (e.key === 'ArrowDown') { e.preventDefault(); moveSelection(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); moveSelection(-1); }
       else if (e.key === 'Enter' && selected) {
-        if (selected.status === 'nuevo') void act(selected, 'iniciar'); else void act(selected, 'listo');
+        if (selected.status === 'nuevo') openSelected(); else void act(selected, 'listo');
       } else if (e.key.toLowerCase() === 'r') setShowHistory((v) => !v);
       else if (e.key.toLowerCase() === 's') setSummary((v) => !v);
     };

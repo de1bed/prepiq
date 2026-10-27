@@ -55,6 +55,13 @@ describe('ticketTiming', () => {
 });
 
 describe('sortTickets', () => {
+  it('platillos que llegan a la misma hora quedan siempre en el mismo orden', () => {
+    const mk = (id: string, item: string, unit: number) => base({ id, order_item_id: item, unit_no: unit });
+    const list = [mk('z', 'b', 1), mk('y', 'a', 2), mk('x', 'a', 1)];
+    const order = sortTickets(list).map((t) => t.id);
+    expect(order).toEqual(['x', 'y', 'z']);
+    expect(sortTickets([...list].reverse()).map((t) => t.id)).toEqual(order);
+  });
   it('prioridad primero y luego antigüedad', () => {
     const a = base({ id: 'a', fired_at: '2026-10-22T12:00:00Z' });
     const b = base({ id: 'b', fired_at: '2026-10-22T11:00:00Z' });
