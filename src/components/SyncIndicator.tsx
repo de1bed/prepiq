@@ -6,7 +6,7 @@ import { errorText } from '@/lib/errors';
 import { Badge, Button, Modal, cx } from './ui';
 
 /** Indicador permanente del estado de sincronización (texto + color). */
-export function SyncIndicator({ dark }: { dark?: boolean }) {
+export function SyncIndicator({ dark, compact }: { dark?: boolean; compact?: boolean }) {
   const { online, pendingCount, failedCount, realtime } = useSync();
   const [open, setOpen] = useState(false);
   let tone = 'ok';
@@ -37,7 +37,7 @@ export function SyncIndicator({ dark }: { dark?: boolean }) {
         data-testid="sync-indicator"
       >
         <Icon className={cx('h-3.5 w-3.5', tone === 'sync' && 'animate-spin')} aria-hidden />
-        <span className="whitespace-nowrap">{text}<span className="hidden md:inline">{detail}</span></span>
+        <span className="whitespace-nowrap">{text}{!compact && <span className="hidden md:inline">{detail}</span>}</span>
       </button>
       <SyncPanel open={open} onClose={() => setOpen(false)} />
     </>

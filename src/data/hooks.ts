@@ -11,7 +11,8 @@ import type {
   ServiceDay, Staff, Station, TicketWithItems, Ingredient, IngredientUnit, Unit, StockRow,
 } from '@/lib/types';
 
-export const ACTIVE_TICKET_STATUSES = ['en_espera', 'nuevo', 'en_preparacion', 'listo'] as const;
+// "Listo" es terminado para cocina: ya no cuenta como activo (se ve en Recientes).
+export const ACTIVE_TICKET_STATUSES = ['en_espera', 'nuevo', 'en_preparacion'] as const;
 
 function useRid(): string {
   const { restaurant } = useApp();
@@ -120,15 +121,75 @@ export function useTickets(opts: { stationId?: string | null; recentMinutes?: nu
       } else {
         q = q.in('status', [...ACTIVE_TICKET_STATUSES]);
       }
-      const rows = await read<TicketWithItems[]>(q.order('created_at', { ascending: true }).limit(400));
+      const rows = await read<TicketWithItems[]>(q.order('created_at', { ascending: true }).limit(600));
       return rows.map((t) => ({ ...t, items: [...(t.items ?? [])].sort((a, b) => a.sort - b.sort) }));
     },
   });
 }
 
+export type TicketLoadRow = Pick<TicketWithItems, 'id' | 'station_id' | 'status' | 'priority' | 'fired_at' | 'created_at' | 'ready_at'
+  | 'blocked' | 'blocked_since' | 'blocked_seconds' | 'paused_seconds' | 'target_minutes'>;
+
+/** Carga de todas las estaciones (sin renglones): para el resumen del encabezado del KDS. */
+export function useStationLoad() {
+  const rid = useRid();
+  const interval = usePollInterval();
+  return useQuery({
+    queryKey: ['tickets', rid, 'load'],
+    enabled: !!rid,
+    refetchInterval: interval,
+    queryFn: () => read<TicketLoadRow[]>(supabase.from('kitchen_tickets')
+      .select('id, station_id, status, priority, fired_at, created_at, ready_at, blocked, blocked_since, blocked_seconds, paused_seconds, target_minutes')
+      .eq('restaurant_id', rid).in('status', ['nuevo', 'en_preparacion']).limit(1000)),
+  });
+}
+
+export interface StationCrew {
+  business_date: string;
+  stations: { station_id: string; staff: { id: string; name: string; manual: boolean }[] }[];
+  people: { id: string; name: string }[];
+}
+
+/** Quién está en cada estación (horario publicado + cambios en vivo). */
+export function useStationCrew() {
+  const rid = useRid();
+  return useQuery({
+    queryKey: ['station-crew', rid],
+    enabled: !!rid,
+    refetchInterval: 60_000,
+    queryFn: () => rpc<StationCrew>('rpc_station_crew', { p_restaurant_id: rid }),
+  });
+}
+
+export interface RecipeBookEntry {
+  id: string;
+  kind: 'menu' | 'prep';
+  name: string;
+  menu_item_id: string | null;
+  category: string | null;
+  stations: string[];
+  version: number;
+  yield_qty: number | null;
+  yield_unit: string | null;
+  instructions: string | null;
+  notes: string | null;
+  lines: { name: string; qty: number; unit: string; notes: string | null }[];
+}
+
+/** Recetas activas para cocina (sin costos). */
+export function useRecipeBook(enabled = true) {
+  const rid = useRid();
+  return useQuery({
+    queryKey: ['recipe-book', rid],
+    enabled: !!rid && enabled,
+    staleTime: 5 * 60_000,
+    queryFn: () => rpc<RecipeBookEntry[]>('kds_recipe_book', { p_restaurant_id: rid }),
+  });
+}
+
 export interface OrderWithItems extends Order {
   items: OrderItem[];
-  tickets: { id: string; station_id: string; status: string; blocked: boolean; course: number; ready_at: string | null }[];
+  tickets: { id: string; station_id: string; status: string; blocked: boolean; priority?: boolean; course: number; ready_at: string | null }[];
 }
 
 export function useOrders(opts: { status?: 'abierta' | 'todas'; mine?: string | null; sinceHours?: number } = {}) {

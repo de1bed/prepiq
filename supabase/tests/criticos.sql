@@ -332,27 +332,39 @@ end $$;
 reset role;
 
 -- =====================================================================
--- 11. Dispositivo compartido: PIN, token de operador y límite de intentos
+-- 11. Dispositivo compartido: cocina sin PIN; PIN opcional, límite de intentos
 -- =====================================================================
 do $$
 declare r jsonb; v_tok uuid; i int;
 begin
   perform pg_temp.login('kds-parrilla@demo.prepiq.test');
-  perform pg_temp.fails(format('select public.rpc_ticket_action(gen_random_uuid(), %L, null, %L, ''iniciar'')',
-    pg_temp.rid(), pg_temp.get('ticket_parrilla')), 'operador_requerido', 'dispositivo exige operador');
+  -- La pantalla de cocina opera sin PIN: el evento guarda dispositivo y equipo de la estación.
+  r := public.rpc_ticket_action(gen_random_uuid(), pg_temp.rid(), null, pg_temp.get('ticket_parrilla')::uuid, 'iniciar');
+  perform pg_temp.ok(exists (select 1 from public.ticket_events where ticket_id = pg_temp.get('ticket_parrilla')::uuid
+    and action = 'iniciar' and staff_id is null and device_id is not null and crew is not null), 'cocina sin PIN: registra dispositivo y equipo');
+  perform pg_temp.fails(format('select public.rpc_ticket_action(gen_random_uuid(), %L, null, %L, ''prioridad'')',
+    pg_temp.rid(), pg_temp.get('ticket_parrilla')), 'permiso_denegado', 'sin PIN no da prioridad (requiere gerente)');
+  perform pg_temp.fails(format('select public.rpc_order_submit(gen_random_uuid(), %L, null, ''{"id":"%s","order_type":"llevar"}''::jsonb, ''ninguno'')',
+    pg_temp.rid(), gen_random_uuid()), 'permiso_denegado', 'la pantalla de cocina no captura órdenes');
+  -- Con PIN se sigue registrando a la persona.
   r := public.rpc_device_login('4444');
   perform pg_temp.ok((r->>'ok')::boolean and r->>'display_name' = 'Diego', 'PIN de Diego abre sesión');
   v_tok := (r->>'token')::uuid;
-  r := public.rpc_ticket_action(gen_random_uuid(), pg_temp.rid(), v_tok, pg_temp.get('ticket_parrilla')::uuid, 'iniciar');
+  r := public.rpc_ticket_action(gen_random_uuid(), pg_temp.rid(), v_tok, pg_temp.get('ticket_parrilla')::uuid, 'bloquear', '{"reason":"prep"}');
   perform pg_temp.ok(exists (select 1 from public.ticket_events where ticket_id = pg_temp.get('ticket_parrilla')::uuid
-    and action = 'iniciar' and staff_id = (select id from public.staff where display_name = 'Diego')
-    and device_id is not null), 'acción registra a Diego y al dispositivo');
+    and action = 'bloquear' and staff_id = (select id from public.staff where display_name = 'Diego')
+    and device_id is not null), 'acción con PIN registra a Diego y al dispositivo');
+  r := public.rpc_ticket_action(gen_random_uuid(), pg_temp.rid(), null, pg_temp.get('ticket_parrilla')::uuid, 'desbloquear');
   for i in 1..5 loop r := public.rpc_device_login('0000'); end loop;
   r := public.rpc_device_login('4444');
   perform pg_temp.ok(r->>'error' = 'pin_bloqueado', 'tras 5 fallos se bloquea aunque el PIN sea correcto');
   perform public.rpc_device_logout(v_tok);
   perform pg_temp.fails(format('select public.rpc_ticket_action(gen_random_uuid(), %L, %L, %L, ''listo'')',
     pg_temp.rid(), v_tok, pg_temp.get('ticket_parrilla')), 'sesion_operador_expirada', 'token cerrado no sirve');
+  -- La terminal de meseros sí exige PIN.
+  perform pg_temp.login('meseros@demo.prepiq.test');
+  perform pg_temp.fails(format('select public.rpc_order_submit(gen_random_uuid(), %L, null, ''{"id":"%s","order_type":"llevar"}''::jsonb, ''ninguno'')',
+    pg_temp.rid(), gen_random_uuid()), 'operador_requerido', 'terminal de meseros exige PIN');
 end $$;
 
 -- =====================================================================

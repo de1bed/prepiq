@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { enterPin, newPage, q } from './helpers';
+import { newPage, q } from './helpers';
 
 // Requiere un Supabase completo (`supabase start`) con Realtime.
 // Se omite con el entorno ligero (dev/local-stack), que no tiene Realtime.
@@ -7,7 +7,6 @@ test.skip(!process.env.E2E_REALTIME, 'Solo con Supabase completo (E2E_REALTIME=1
 
 test('tiempo real: el ticket aparece en cocina sin esperar el sondeo', async ({ browser }) => {
   const kds = await newPage(browser, 'kds-comal@demo.prepiq.test');
-  await enterPin(kds.page, '3333');
   await expect(kds.page.getByTestId('sync-indicator')).toHaveAccessibleName(/tiempo real/, { timeout: 20_000 });
   // El canal queda SUBSCRIBED antes de que el servidor termine de registrar
   // la suscripción a cambios de Postgres: margen breve antes de crear la orden.

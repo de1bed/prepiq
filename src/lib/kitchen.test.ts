@@ -25,6 +25,15 @@ const op = (rpc: string, args: Record<string, unknown>, status: 'pending' | 'fai
 });
 
 describe('ticketTiming', () => {
+  it('al reabrir, el reloj sigue donde se quedó (no cuenta el tiempo terminado)', () => {
+    // Llegó 12:00, se marcó listo 12:04 y se reabrió 12:09 (5 min en pausa); a las 12:10 lleva 5 min.
+    const t = base({ status: 'en_preparacion', paused_seconds: 300 });
+    expect(ticketTiming(t, at('2026-10-22T12:10:00Z')).activeSec).toBe(300);
+    const reopened = applyPendingTicketOps([base({ status: 'listo', ready_at: '2026-10-22T12:01:00Z' })],
+      [op('rpc_ticket_action', { p_ticket_id: 't1', p_action: 'reabrir', p_args: { reason: 'marcado_por_error' } })]);
+    expect(reopened[0].paused_seconds).toBe(240);
+    expect(reopened[0].ready_at).toBeNull();
+  });
   it('descuenta el tiempo bloqueado y calcula urgencia', () => {
     const t = base({ blocked_seconds: 120 });
     const r = ticketTiming(t, at('2026-10-22T12:10:00Z'));

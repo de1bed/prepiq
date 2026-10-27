@@ -1,16 +1,16 @@
 import { Minus, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { MenuData } from '@/data/hooks';
-import type { MenuItem, Modifier } from '@/lib/types';
+import type { MenuItem, Modifier, Station } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { uuid } from '@/lib/ids';
 import { Button, Field, Input, Modal, cx } from '@/components/ui';
 import { lineTotal, type DraftLine } from './drafts';
 
 /** Agregar o editar un producto: modificadores (con mínimos/máximos), cantidad, notas, tiempo y asiento. */
-export function ItemDialog({ open, onClose, item, menu, currency, initial, onSave, maxCourse = 3 }: {
+export function ItemDialog({ open, onClose, item, menu, currency, initial, onSave, maxCourse = 3, stations = [] }: {
   open: boolean; onClose: () => void; item: MenuItem | null; menu: MenuData; currency: string;
-  initial?: DraftLine | null; onSave: (line: DraftLine) => void; maxCourse?: number;
+  initial?: DraftLine | null; onSave: (line: DraftLine) => void; maxCourse?: number; stations?: Station[];
 }) {
   const groups = useMemo(() => {
     if (!item) return [];
@@ -26,6 +26,7 @@ export function ItemDialog({ open, onClose, item, menu, currency, initial, onSav
   const [notes, setNotes] = useState('');
   const [course, setCourse] = useState(1);
   const [seat, setSeat] = useState<string>('');
+  const [extra, setExtra] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -36,6 +37,7 @@ export function ItemDialog({ open, onClose, item, menu, currency, initial, onSav
     setNotes(initial?.notes ?? '');
     setCourse(initial?.course ?? 1);
     setSeat(initial?.seat ? String(initial.seat) : '');
+    setExtra(initial?.extra_station_ids ?? []);
   }, [open, initial]);
 
   if (!item) return null;
@@ -60,7 +62,11 @@ export function ItemDialog({ open, onClose, item, menu, currency, initial, onSav
   const line: DraftLine = {
     id: initial?.id ?? uuid(), menu_item_id: item.id, name: item.name, unit_price: Number(item.price), qty, modifiers: mods,
     notes: notes.trim(), course, seat: seat ? Number(seat) : null, replaces_item_id: initial?.replaces_item_id ?? null,
+    extra_station_ids: extra,
   };
+  const routes = menu.routes.filter((r) => r.menu_item_id === item.id);
+  const routeNames = routes.map((r) => `${stations.find((s) => s.id === r.station_id)?.name ?? ''}${r.component ? ` (${r.component})` : ''}`).filter(Boolean);
+  const extraOptions = stations.filter((s) => s.active && s.kind !== 'pase' && !routes.some((r) => r.station_id === s.id));
 
   return (
     <Modal open={open} onClose={onClose} size="lg" title={item.name}
@@ -98,7 +104,7 @@ export function ItemDialog({ open, onClose, item, menu, currency, initial, onSav
             <Button variant="secondary" size="lg" onClick={() => setQty((q) => Math.min(99, q + 1))} aria-label="Más"><Plus className="h-4 w-4" /></Button>
           </div>
         </Field>
-        <Field label="Tiempo" hint="Los tiempos posteriores pueden quedar en espera.">
+        <Field label="Tiempo" hint="1 sale ya. 2 y 3 esperan a que los marches (p. ej. plato fuerte después de la entrada).">
           <div className="flex gap-1">
             {Array.from({ length: maxCourse }, (_, i) => i + 1).map((c) => (
               <button key={c} type="button" onClick={() => setCourse(c)}
@@ -106,11 +112,25 @@ export function ItemDialog({ open, onClose, item, menu, currency, initial, onSav
             ))}
           </div>
         </Field>
-        <Field label="Asiento (opcional)"><Input inputMode="numeric" value={seat} onChange={(e) => setSeat(e.target.value.replace(/\D/g, '').slice(0, 2))} /></Field>
+        <Field label="Asiento (opcional)" hint="Número de la persona en la mesa, para saber a quién va."><Input inputMode="numeric" value={seat} onChange={(e) => setSeat(e.target.value.replace(/\D/g, '').slice(0, 2))} data-testid="item-seat" /></Field>
       </div>
       <Field label="Nota para cocina" className="mt-3">
         <Input value={notes} maxLength={200} onChange={(e) => setNotes(e.target.value)} placeholder="Ej. bien dorado, alergia a nuez" />
       </Field>
+      {extraOptions.length > 0 && (
+        <section className="mt-3 rounded-xl border border-dashed border-slate-300 p-3" data-testid="extra-stations">
+          <div className="mb-2 text-sm"><b>Enviar también a</b> <span className="text-slate-500">· normalmente va a: {routeNames.join(', ') || '—'}</span></div>
+          <div className="flex flex-wrap gap-2">
+            {extraOptions.map((s) => (
+              <button key={s.id} type="button" onClick={() => setExtra((x) => x.includes(s.id) ? x.filter((y) => y !== s.id) : [...x, s.id])}
+                data-testid={`extra-station-${s.name}`}
+                className={cx('flex items-center gap-1.5 rounded-full border-2 px-3 py-1 text-sm font-semibold', extra.includes(s.id) ? 'border-brand-500 bg-brand-50' : 'border-slate-200')}>
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />{s.name}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {item.allergens.length > 0 && <p className="mt-2 text-xs text-amber-700">Alérgenos declarados: {item.allergens.join(', ')}</p>}
     </Modal>
   );

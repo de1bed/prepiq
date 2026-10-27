@@ -1,12 +1,12 @@
 import { expect, test, type Browser } from '@playwright/test';
-import { enterPin, newPage, q } from './helpers';
+import { newPage, q } from './helpers';
 
 async function blankTablet(browser: Browser) {
   const ctx = await browser.newContext({ locale: 'es-MX', timezoneId: 'America/Mexico_City', viewport: { width: 1280, height: 800 } });
   return { ctx, page: await ctx.newPage() };
 }
 
-test('vincular una tableta con QR: sin crear cuentas, abre en su estación y pide PIN', async ({ browser }) => {
+test('vincular una tableta con QR: sin crear cuentas, abre directo en su estación (cocina sin PIN)', async ({ browser }) => {
   const name = `Tableta E2E ${Date.now()}`;
   const { ctx: adminCtx, page: admin } = await newPage(browser, 'ana@demo.prepiq.test');
   await admin.goto('/admin/dispositivos');
@@ -24,9 +24,8 @@ test('vincular una tableta con QR: sin crear cuentas, abre en su estación y pid
   await tablet.page.goto(`/vincular#${code.replace('-', '')}`);
   await expect(tablet.page.getByTestId('pair-device-name')).toHaveText(name);
   await tablet.page.getByTestId('pair-confirm').click();
-  await expect(tablet.page.getByTestId('pin-submit')).toBeVisible({ timeout: 20_000 });
-  await enterPin(tablet.page, '3333');
-  await expect(tablet.page.getByTestId('kds-station')).toHaveText('Comal');
+  await expect(tablet.page.getByTestId('kds-station')).toHaveText('Comal', { timeout: 20_000 });
+  await expect(tablet.page.getByTestId('pin-submit')).toHaveCount(0);
 
   // Administración ve que quedó vinculado.
   await expect(admin.getByTestId('pairing-done')).toBeVisible({ timeout: 15_000 });

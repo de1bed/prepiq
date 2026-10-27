@@ -129,6 +129,8 @@ export interface OrderItem {
   sent_at: string | null;
   void_reason: string | null;
   created_at: string;
+  /** Estaciones extra a las que también se envió (además de su ruta). */
+  extra_station_ids?: string[];
 }
 
 export interface KitchenTicket {
@@ -159,6 +161,14 @@ export interface KitchenTicket {
   reopen_count: number;
   version: number;
   updated_at: string;
+  /** Ticket por unidad: línea de la orden y número de unidad (1/3, 2/3…). Null en tickets anteriores. */
+  order_item_id?: string | null;
+  unit_no?: number | null;
+  unit_count?: number | null;
+  /** Segundos que estuvo terminado antes de reabrirse (no cuentan en el cronómetro). */
+  paused_seconds?: number;
+  /** Enviado a esta estación como extra (fuera de la ruta normal). */
+  extra_station?: boolean;
 }
 
 export interface TicketItem {
@@ -176,6 +186,7 @@ export interface TicketItem {
   status: TicketItemStatus;
   ready_at: string | null;
   sort: number;
+  menu_item_id?: string | null;
 }
 
 export interface TicketWithItems extends KitchenTicket { items: TicketItem[] }

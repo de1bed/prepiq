@@ -14,6 +14,8 @@ export interface DraftLine {
   course: number;
   seat: number | null;
   replaces_item_id?: string | null;
+  /** Estaciones adicionales a su ruta normal ("Enviar también a"). */
+  extra_station_ids?: string[];
 }
 
 export interface OrderDraft {

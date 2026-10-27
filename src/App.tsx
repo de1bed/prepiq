@@ -62,15 +62,16 @@ export function App() {
       <Routes>
         {device.mode === 'kds' && (
           <>
-            <Route path="/cocina/:stationId" element={<OperatorGate title="Cocina"><KdsPage /></OperatorGate>} />
-            <Route path="/cocina" element={<OperatorGate title="Cocina"><KdsStationPicker /></OperatorGate>} />
+            {/* Cocina sin PIN: quién está en cada estación sale del horario. */}
+            <Route path="/cocina/:stationId" element={<KdsPage />} />
+            <Route path="/cocina" element={<KdsStationPicker />} />
             <Route path="*" element={<Navigate to={device.station_id ? `/cocina/${device.station_id}` : '/cocina'} replace />} />
           </>
         )}
         {device.mode === 'expo' && (
           <>
-            <Route path="/pase" element={<OperatorGate title="Pase"><ExpoPage /></OperatorGate>} />
-            <Route path="/cocina/:stationId" element={<OperatorGate title="Cocina"><KdsPage /></OperatorGate>} />
+            <Route path="/pase" element={<ExpoPage />} />
+            <Route path="/cocina/:stationId" element={<KdsPage />} />
             <Route path="*" element={<Navigate to="/pase" replace />} />
           </>
         )}
@@ -97,7 +98,7 @@ export function App() {
       <Route path="/cocina/:stationId" element={<RequirePerm perm="kds.view"><KdsPage /></RequirePerm>} />
       <Route path="/cocina" element={<RequirePerm perm="kds.view"><Shell><KdsStationPicker /></Shell></RequirePerm>} />
       <Route path="/pase" element={<RequirePerm perm="kds.view"><ExpoPage /></RequirePerm>} />
-      <Route path="/mesero/*" element={<RequirePerm perm="orders.create"><Shell><WaiterPage /></Shell></RequirePerm>} />
+      <Route path="/mesero/*" element={<RequirePerm perm="orders.create"><WaiterPage /></RequirePerm>} />
       <Route path="/turno" element={<RequirePerm perm="service.open_close"><Shell><ShiftLeadPage /></Shell></RequirePerm>} />
       <Route path="/inventario/*" element={<RequirePerm perm="inventory.view"><Shell><InventoryPage /></Shell></RequirePerm>} />
       <Route path="/etiquetas" element={<RequirePerm perm={['labels.print', 'labels.manage']}><Shell><LabelsPage /></Shell></RequirePerm>} />

@@ -5,7 +5,7 @@ import type { OutboxOp } from './outbox';
 export type Urgency = 'ok' | 'warn' | 'late';
 
 export interface TicketTiming {
-  /** Segundos activos desde que se marchó, sin contar tiempo bloqueado por faltante. */
+  /** Segundos activos desde que llegó a cocina, sin contar faltante ni pausa. */
   activeSec: number;
   /** Segundos bloqueados (acumulado + bloqueo en curso). */
   blockedSec: number;
@@ -14,12 +14,13 @@ export interface TicketTiming {
   urgency: Urgency;
 }
 
-export function ticketTiming(t: Pick<TicketWithItems, 'fired_at' | 'created_at' | 'ready_at' | 'blocked' | 'blocked_since' | 'blocked_seconds' | 'target_minutes'>, now: number, settings?: RestaurantSettings): TicketTiming {
+export function ticketTiming(t: Pick<TicketWithItems, 'fired_at' | 'created_at' | 'ready_at' | 'blocked' | 'blocked_since' | 'blocked_seconds' | 'target_minutes' | 'paused_seconds'>, now: number, settings?: RestaurantSettings): TicketTiming {
   const start = new Date(t.fired_at ?? t.created_at).getTime();
   const end = t.ready_at ? new Date(t.ready_at).getTime() : now;
   const blockedNow = t.blocked && t.blocked_since ? Math.max(0, (now - new Date(t.blocked_since).getTime()) / 1000) : 0;
   const blockedSec = (t.blocked_seconds ?? 0) + blockedNow;
-  const activeSec = Math.max(0, (end - start) / 1000 - blockedSec);
+  // Desde que llegó a cocina; sin contar faltantes ni el tiempo que estuvo terminado antes de reabrirse.
+  const activeSec = Math.max(0, (end - start) / 1000 - blockedSec - (t.paused_seconds ?? 0));
   const pct = t.target_minutes > 0 ? (activeSec / 60 / t.target_minutes) * 100 : 0;
   const warn = settings?.kds_warn_pct ?? 75;
   const late = settings?.kds_late_pct ?? 100;
@@ -86,6 +87,7 @@ export function applyPendingTicketOps(tickets: TicketWithItems[], ops: OutboxOp[
           t.items.forEach((i) => { if (i.status === 'pendiente') i.status = 'listo'; });
         }
         if (action === 'reabrir') {
+          if (t.ready_at) t.paused_seconds = (t.paused_seconds ?? 0) + Math.max(0, (op.createdAt - new Date(t.ready_at).getTime()) / 1000);
           t.ready_at = null;
           t.items.forEach((i) => { if (i.status === 'listo') i.status = 'pendiente'; });
         }

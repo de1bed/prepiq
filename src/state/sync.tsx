@@ -35,6 +35,9 @@ function getOutbox(): Outbox {
 /** Claves de consulta a refrescar cuando termina una operación. */
 const INVALIDATE: Record<string, string[]> = {
   rpc_order_submit: ['orders', 'tickets', 'stock'],
+  rpc_order_submit_v2: ['orders', 'tickets', 'stock'],
+  rpc_station_crew_set: ['station-crew'],
+  rpc_order_priority: ['orders', 'tickets'],
   rpc_order_item_void: ['orders', 'tickets', 'stock'],
   rpc_order_fire_course: ['orders', 'tickets'],
   rpc_order_close: ['orders', 'tickets'],

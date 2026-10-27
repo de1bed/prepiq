@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { enterPin, expectSynced, newPage, q } from './helpers';
 
-test('pedido → cocina → entrega, con actor y consumo registrados', async ({ browser }) => {
+test('pedido → cocina (cerrado, Abrir, Listo) → la orden se cierra sin "entregar"', async ({ browser }) => {
   // Mesera captura en su cuenta personal.
   const mesero = await newPage(browser, 'elena@demo.prepiq.test');
   const m = mesero.page;
@@ -22,34 +22,40 @@ test('pedido → cocina → entrega, con actor y consumo registrados', async ({ 
   await expect.poll(async () => (await q(`select id from orders where table_label = '9'`)).length, { timeout: 20_000 }).toBe(1);
   const [order] = await q<{ id: string; number: number }>(`select id, number from orders where table_label = '9'`);
 
-  // Tableta de cocina (dispositivo compartido) con PIN de Carla.
+  // Tableta de cocina: sin PIN.
   const kds = await newPage(browser, 'kds-comal@demo.prepiq.test');
   const k = kds.page;
-  await enterPin(k, '3333');
   await expect(k.getByTestId('kds-station')).toHaveText('Comal');
-  await expect(k.getByTestId('operator-name')).toHaveText('Carla');
-  const card = k.getByTestId(`ticket-${order.number}`);
-  await expect(card).toBeVisible();
-  await expect(card).toContainText('Pastor (3)');
-  await expect(card).toContainText('SIN CEBOLLA');
-  await card.getByTestId('ticket-bump').click();
-  await expect(card).toHaveCount(0);
+  await expect(k.getByTestId('pin-submit')).toHaveCount(0);
+  const row = k.getByTestId(`ticket-${order.number}`);
+  await expect(row).toBeVisible();
+  // Llega cerrado: no se ve el contenido hasta abrirlo.
+  await expect(row).toHaveAttribute('data-open', 'false');
+  await expect(row).not.toContainText('Pastor (3)');
+  await row.click();
+  await k.getByTestId('kds-open').click();
+  await expect(row).toHaveAttribute('data-open', 'true');
+  await expect(row).toContainText('Pastor (3)');
+  await expect(row).toContainText('SIN CEBOLLA');
+  await row.getByTestId('ticket-bump').click();
+  await expect(row).toHaveCount(0);
   await expectSynced(k);
 
-  // La mesera ve "Listo" y entrega.
+  // La mesera ve "listo" y cierra sin forzar (listo = terminado).
   await m.getByTestId(`order-card-${order.number}`).click();
-  await expect(m.getByTestId('deliver-ticket')).toBeVisible({ timeout: 20_000 });
-  await m.getByTestId('deliver-ticket').click();
-  await expect.poll(async () => (await q(`select e.id from ticket_events e join kitchen_tickets t on t.id = e.ticket_id
-    where t.order_id = $1 and e.action = 'entregar'`, [order.id])).length).toBe(1);
+  await expect(m.getByTestId('kitchen-status')).toContainText('listo', { timeout: 20_000 });
+  await expect(m.getByTestId('deliver-ticket')).toHaveCount(0);
+  await m.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await m.getByRole('dialog').getByRole('button', { name: 'Cerrar orden' }).click();
+  await expect.poll(async () => (await q<{ status: string }>(`select status from orders where id = $1`, [order.id]))[0].status, { timeout: 20_000 }).toBe('cerrada');
 
-  const events = await q<{ action: string; staff: string; device: string | null }>(`
+  const events = await q<{ action: string; staff: string | null; device: string | null }>(`
     select e.action, s.display_name as staff, d.name as device from ticket_events e
     join kitchen_tickets t on t.id = e.ticket_id left join staff s on s.id = e.staff_id left join devices d on d.id = e.device_id
     where t.order_id = $1 order by e.at`, [order.id]);
-  expect(events.map((e) => e.action)).toEqual(['crear', 'listo', 'entregar']);
-  expect(events[1]).toMatchObject({ staff: 'Carla', device: 'Tableta Comal' });
-  expect(events[2]).toMatchObject({ staff: 'Elena' });
+  expect(events.map((e) => e.action)).toEqual(['crear', 'iniciar', 'listo']);
+  expect(events[0]).toMatchObject({ staff: 'Elena' });
+  expect(events[2]).toMatchObject({ staff: null, device: 'Tableta Comal' });
   const mov = await q<{ n: string; cebolla: string }>(`
     select count(*) as n, count(*) filter (where i.name = 'Cebolla blanca') as cebolla
     from inventory_movements m join order_items oi on oi.id = m.source_id join ingredients i on i.id = m.ingredient_id
@@ -59,10 +65,49 @@ test('pedido → cocina → entrega, con actor y consumo registrados', async ({ 
   await mesero.ctx.close(); await kds.ctx.close();
 });
 
+test('3 iguales = 3 tickets; Resumen los junta; "enviar también a" otra estación', async ({ browser }) => {
+  const mesero = await newPage(browser, 'elena@demo.prepiq.test');
+  const m = mesero.page;
+  await m.goto('/mesero');
+  await m.getByTestId('new-order').click();
+  await m.getByTestId('table-input').fill('14');
+  await m.getByTestId('menu-item-Orden de tacos de arrachera (3)').click();
+  await m.getByRole('button', { name: 'Maíz' }).click();
+  await m.getByRole('button', { name: 'Más' }).click();
+  await m.getByRole('button', { name: 'Más' }).click();
+  await expect(m.getByTestId('item-qty')).toHaveText('3');
+  await m.getByTestId('extra-station-Comal').click();
+  await m.getByTestId('item-save').click();
+  await m.getByTestId('send-order').click();
+  await expectSynced(m);
+  await expect.poll(async () => (await q(`select id from orders where table_label = '14'`)).length, { timeout: 20_000 }).toBe(1);
+  const [order] = await q<{ id: string; number: number }>(`select id, number from orders where table_label = '14'`);
+  const rows = await q<{ station: string; extra: boolean }>(`select s.name as station, k.extra_station as extra
+    from kitchen_tickets k join stations s on s.id = k.station_id where k.order_id = $1`, [order.id]);
+  expect(rows.filter((r) => r.station === 'Parrilla')).toHaveLength(3);
+  expect(rows.filter((r) => r.station === 'Comal' && r.extra)).toHaveLength(3);
+
+  const kds = await newPage(browser, 'kds-parrilla@demo.prepiq.test');
+  const k = kds.page;
+  await expect(k.getByTestId(`ticket-${order.number}`)).toHaveCount(3);
+  await expect(k.getByTestId('load-Comal').getByTestId('load-count')).not.toHaveText('0');
+  await k.getByTestId('kds-summary').click();
+  await expect(k.getByTestId('summary-Arrachera (3)').getByTestId('summary-total')).not.toHaveText(/^[012]$/);
+  await k.getByTestId('kds-summary').click();
+  // Recetas y ayuda en pestañas.
+  await k.getByTestId('tab-recetas').click();
+  await k.getByTestId('recipe-search').fill('pico');
+  await k.getByTestId('recipe-Pico de gallo').click();
+  await expect(k.getByTestId('recipe-view')).toContainText('Ingredientes');
+  await k.getByTestId('tab-ayuda').click();
+  await expect(k.getByTestId('kds-help')).toContainText('Abrir');
+  await mesero.ctx.close(); await kds.ctx.close();
+});
+
 test('si se pierde la respuesta del servidor, el reintento no duplica la orden', async ({ browser }) => {
   const { ctx, page } = await newPage(browser, 'elena@demo.prepiq.test');
   let dropped = false;
-  await page.route('**/rest/v1/rpc/rpc_order_submit', async (route) => {
+  await page.route('**/rest/v1/rpc/rpc_order_submit_v2', async (route) => {
     if (!dropped) {
       dropped = true;
       await route.fetch();            // el servidor SÍ procesa…
@@ -92,13 +137,18 @@ test('si se pierde la respuesta del servidor, el reintento no duplica la orden',
 
 test('cocina sin conexión: la acción se guarda, se muestra y se sincroniza una sola vez', async ({ browser }) => {
   const { ctx, page } = await newPage(browser, 'kds-parrilla@demo.prepiq.test');
-  await enterPin(page, '4444');
   await expect(page.getByTestId('kds-station')).toHaveText('Parrilla');
   const [t] = await q<{ id: string; order_number: number }>(`
     select k.id, k.order_number from kitchen_tickets k join stations s on s.id = k.station_id
     where s.name = 'Parrilla' and k.status in ('nuevo','en_preparacion') order by k.created_at limit 1`);
-  const card = page.getByTestId(`ticket-${t.order_number}`);
+  const card = page.locator(`[data-ticket-id="${t.id}"]`);
   await expect(card).toBeVisible();
+  if ((await card.getAttribute('data-open')) !== 'true') {
+    await card.click();
+    await page.getByTestId('kds-open').click();
+    await expect(card).toHaveAttribute('data-open', 'true');
+    await expectSynced(page);
+  }
 
   await ctx.setOffline(true);
   await card.getByTestId('ticket-bump').click();
@@ -127,31 +177,35 @@ test('roles: el mesero no entra a administración ni ve reportes', async ({ brow
   await ctx.close();
 });
 
-test('cocina: reabrir exige motivo y conserva el historial', async ({ browser }) => {
+test('cocina: reabrir en dos toques (listo por error, sin reproceso) y conserva el historial', async ({ browser }) => {
   const { ctx, page } = await newPage(browser, 'kds-parrilla@demo.prepiq.test');
-  await enterPin(page, '4444');
   await expect(page.getByTestId('kds-station')).toHaveText('Parrilla');
   // Autosuficiente: si no hay un ticket terminado reciente, se marca uno listo.
   const ready = await q(`select k.id from kitchen_tickets k join stations s on s.id = k.station_id
     where s.name = 'Parrilla' and k.status in ('listo','entregado')`);
   if (ready.length === 0) {
-    await page.getByTestId('ticket-bump').first().click();
+    const first = page.locator('[data-ticket-id]').first();
+    await first.click();
+    if ((await first.getAttribute('data-open')) !== 'true') await page.getByTestId('kds-open').click();
+    await first.getByTestId('ticket-bump').click();
     await expect.poll(async () => (await q(`select k.id from kitchen_tickets k join stations s on s.id = k.station_id
       where s.name = 'Parrilla' and k.status = 'listo'`)).length).toBeGreaterThan(0);
   }
   const before = await q(`select id from ticket_events where action = 'reabrir'`);
+  const remakeBefore = await q(`select id from inventory_movements where kind = 'reproceso'`);
   await page.getByTestId('kds-recent').click();
   await page.getByRole('dialog').getByTestId('ticket-reopen').first().click();
   const reasonDialog = page.getByRole('dialog');
-  await expect(reasonDialog.getByTestId('reason-confirm')).toBeDisabled();
-  await reasonDialog.getByRole('button', { name: 'Error de preparación' }).click();
+  // Ya viene "se marcó listo por error" y sin reproceso: solo confirmar.
+  await expect(reasonDialog.getByTestId('reopen-remake')).not.toBeChecked();
+  await expect(reasonDialog.getByTestId('reason-confirm')).toBeEnabled();
   await reasonDialog.getByTestId('reason-confirm').click();
   await expect.poll(async () => (await q(`select id from ticket_events where action = 'reabrir'`)).length).toBe(before.length + 1);
-  const ev = await q<{ reason: string; staff: string }>(`select e.reason, s.display_name as staff from ticket_events e
-    join staff s on s.id = e.staff_id where e.action = 'reabrir' order by e.at desc limit 1`);
-  expect(ev[0]).toMatchObject({ reason: 'error_preparacion', staff: 'Diego' });
+  const ev = await q<{ reason: string; device: string }>(`select e.reason, d.name as device from ticket_events e
+    join devices d on d.id = e.device_id where e.action = 'reabrir' order by e.at desc limit 1`);
+  expect(ev[0]).toMatchObject({ reason: 'marcado_por_error', device: 'Tableta Parrilla' });
   const remake = await q(`select id from inventory_movements where kind = 'reproceso'`);
-  expect(remake.length).toBeGreaterThan(0);
+  expect(remake.length).toBe(remakeBefore.length);
   await ctx.close();
 });
 

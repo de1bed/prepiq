@@ -1,6 +1,6 @@
 import { AlertTriangle, Ban, CheckCircle2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { rpc } from '@/lib/rpc';
 import { useApp } from '@/state/session';
 import { useEnqueue } from '@/state/sync';
@@ -13,7 +13,7 @@ import { ReasonDialog } from '@/components/ReasonDialog';
 import type { TicketWithItems } from '@/lib/types';
 
 const ACTION_TEXT: Record<string, string> = {
-  crear: 'Llegó a cocina', marchar: 'Se marchó', iniciar: 'Inició preparación', listo: 'Marcado listo', entregar: 'Entregado',
+  crear: 'Llegó a la cocina', marchar: 'Se marchó (siguiente tiempo)', iniciar: 'Se abrió el ticket', listo: 'Terminado', entregar: 'Entregado en el pase',
   reabrir: 'Reabierto', bloquear: 'Faltante reportado', desbloquear: 'Faltante resuelto', prioridad: 'Prioridad autorizada',
   quitar_prioridad: 'Prioridad retirada', renglon_listo: 'Renglón listo', renglon_pendiente: 'Renglón regresado', renglon_anulado: 'Renglón anulado',
   anular: 'Ticket anulado',
@@ -49,7 +49,7 @@ export function TicketHistory({ ticketId, onClose }: { ticketId: string | null; 
   const { data, isLoading } = useQuery({
     queryKey: ['timeline', ticketId],
     enabled: !!ticketId,
-    queryFn: () => rpc<{ cycle_minutes: number | null; station_name: string; ticket: TicketWithItems; events: { at: string; action: string; reason: string | null; note: string | null; staff: string | null; authorized_by: string | null; device: string | null }[] }>(
+    queryFn: () => rpc<{ cycle_minutes: number | null; station_name: string; ticket: TicketWithItems; events: { at: string; action: string; reason: string | null; note: string | null; staff: string | null; authorized_by: string | null; device: string | null; crew: string[] | null }[] }>(
       'report_ticket_timeline', { p_restaurant_id: restaurant!.id, p_ticket_id: ticketId }),
   });
   return (
@@ -57,7 +57,7 @@ export function TicketHistory({ ticketId, onClose }: { ticketId: string | null; 
       {isLoading || !data ? <Spinner /> : (
         <>
           <p className="mb-3 text-sm text-slate-400">
-            Objetivo {data.ticket.target_minutes} min · ciclo {data.cycle_minutes != null ? `${data.cycle_minutes} min` : 'en curso'}
+            Objetivo {data.ticket.target_minutes} min · tiempo {data.cycle_minutes != null ? `${data.cycle_minutes} min` : 'en curso'}
             {data.ticket.blocked_seconds > 0 && ` · ${Math.round(data.ticket.blocked_seconds / 60)} min bloqueado por faltante`}
           </p>
           <ol className="relative border-l border-slate-700 pl-5">
@@ -66,7 +66,7 @@ export function TicketHistory({ ticketId, onClose }: { ticketId: string | null; 
                 <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-brand-500" />
                 <div className="text-sm font-semibold">{ACTION_TEXT[e.action] ?? e.action} <span className="font-normal text-slate-400">· {formatTime(e.at, restaurant!.timezone)}</span></div>
                 <div className="text-xs text-slate-400">
-                  {[e.staff, e.device && `en ${e.device}`, e.authorized_by && `autorizó ${e.authorized_by}`].filter(Boolean).join(' · ')}
+                  {[e.staff ?? (e.crew?.length ? `Estación: ${e.crew.join(', ')}` : null), e.device && `en ${e.device}`, e.authorized_by && `autorizó ${e.authorized_by}`].filter(Boolean).join(' · ')}
                 </div>
                 {(e.reason || e.note) && <div className="text-sm text-amber-300">{[REOPEN_REASONS.find((r) => r.value === e.reason)?.label ?? e.reason, e.note].filter(Boolean).join(' — ')}</div>}
               </li>
@@ -79,7 +79,7 @@ export function TicketHistory({ ticketId, onClose }: { ticketId: string | null; 
 }
 
 /** Menú de acciones secundarias del ticket. */
-export function TicketMenu({ ticket, onClose }: { ticket: TicketWithItems | null; onClose: () => void }) {
+export function TicketMenu({ ticket, onClose, onHistory }: { ticket: TicketWithItems | null; onClose: () => void; onHistory?: (ticketId: string) => void }) {
   const { act } = useTicketActions();
   const [block, setBlock] = useState(false);
   if (!ticket) return null;
@@ -100,6 +100,7 @@ export function TicketMenu({ ticket, onClose }: { ticket: TicketWithItems | null
             <Button size="lg" variant="dark" onClick={() => run(() => act(t, 'prioridad', {}, 'orders.priority', 'Dar prioridad a este ticket'))}>Dar prioridad (requiere gerente)</Button>
           )}
           {t.status === 'en_espera' && <Button size="lg" variant="dark" onClick={() => run(() => act(t, 'marchar'))}>Marchar ahora</Button>}
+          {onHistory && <Button size="lg" variant="dark" onClick={() => { onClose(); onHistory(t.id); }} data-testid="ticket-timeline">Ver qué pasó con este ticket</Button>}
         </div>
       </Modal>
       <ReasonDialog open={block} dark onClose={() => { setBlock(false); onClose(); }} title="¿Qué falta?" freeText
@@ -109,15 +110,18 @@ export function TicketMenu({ ticket, onClose }: { ticket: TicketWithItems | null
   );
 }
 
+/** Reabrir ("desvender"): por defecto "se marcó listo por error" y sin reproceso,
+ * para que sea un toque. El cronómetro sigue donde se quedó. */
 export function ReopenDialog({ ticket, onClose }: { ticket: TicketWithItems | null; onClose: () => void }) {
   const { act } = useTicketActions();
-  const [remake, setRemake] = useState(true);
+  const [remake, setRemake] = useState(false);
+  useEffect(() => { if (ticket) setRemake(false); }, [ticket]);
   return (
     <ReasonDialog open={!!ticket} dark onClose={onClose} title={`Reabrir #${ticket?.order_number ?? ''}`} reasons={REOPEN_REASONS} tone="warning"
-      confirmLabel="Reabrir" extra={
+      defaultReason="marcado_por_error" confirmLabel="Reabrir" extra={
         <label className="mb-3 flex items-start gap-2 rounded-lg bg-slate-800 p-3 text-sm">
-          <input type="checkbox" checked={remake} onChange={(e) => setRemake(e.target.checked)} className="mt-0.5" />
-          <span><b>Se vuelve a preparar</b> (reproceso): descuenta inventario otra vez. Desmárcalo si solo se marcó listo por error.</span>
+          <input type="checkbox" checked={remake} onChange={(e) => setRemake(e.target.checked)} className="mt-0.5" data-testid="reopen-remake" />
+          <span><b>Se vuelve a preparar</b> (reproceso): descuenta inventario otra vez. Déjalo apagado si solo se marcó listo por error.</span>
         </label>
       }
       onSubmit={(reason, note) => { const t = ticket!; onClose(); void act(t, 'reabrir', { reason, note, remake }); }} />

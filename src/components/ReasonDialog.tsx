@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Field, Modal, Textarea, cx } from './ui';
 
 /** Selección de motivo (obligatoria) con nota opcional, botones grandes. */
-export function ReasonDialog({ open, onClose, title, reasons, onSubmit, confirmLabel = 'Confirmar', tone = 'danger', extra, noteRequired, dark, freeText }: {
+export function ReasonDialog({ open, onClose, title, reasons, onSubmit, confirmLabel = 'Confirmar', tone = 'danger', extra, noteRequired, dark, freeText, defaultReason }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -15,10 +15,12 @@ export function ReasonDialog({ open, onClose, title, reasons, onSubmit, confirmL
   dark?: boolean;
   /** Si es true, el "motivo" es texto libre (p. ej. qué falta). */
   freeText?: boolean;
+  /** Motivo ya elegido al abrir (para acciones rápidas). */
+  defaultReason?: string;
 }) {
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(defaultReason ?? '');
   const [note, setNote] = useState('');
-  useEffect(() => { if (open) { setReason(''); setNote(''); } }, [open]);
+  useEffect(() => { if (open) { setReason(defaultReason ?? ''); setNote(''); } }, [open, defaultReason]);
   const valid = (freeText ? note.trim().length > 0 : !!reason) && (!noteRequired || note.trim().length > 0);
   return (
     <Modal open={open} onClose={onClose} title={title} dark={dark}

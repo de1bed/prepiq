@@ -1,47 +1,105 @@
 import {
-  ArrowLeft, Ban, Bell, CheckCircle2, ChefHat, Clock, CloudOff, Flame, Minus, Pencil, Plus, Replace, Send, ShoppingBag, Star, Trash2, Users,
+  ArrowLeft, Ban, Bell, ChefHat, Clock, CloudOff, Flame, Home, LogOut, Minus, Pencil, Plus, Replace, Send, ShoppingBag, Star, Trash2, UserRound,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useLiveTables, useMenu, useOrder, useOrders, useStaff, useStations, type MenuData, type OrderWithItems } from '@/data/hooks';
 import { useApp } from '@/state/session';
 import { useEnqueue, useSync } from '@/state/sync';
-import { useOverride, OperatorBadge } from '@/components/Pin';
+import { useOverride } from '@/components/Pin';
 import { ReasonDialog } from '@/components/ReasonDialog';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner, Tabs, cx, useToast } from '@/components/ui';
 import { formatMoney, ORDER_TYPE_LABELS, VOID_REASONS } from '@/lib/format';
 import { formatTime } from '@/lib/time';
 import { uuid } from '@/lib/ids';
-import type { MenuItem, OrderItem, OrderType } from '@/lib/types';
+import type { MenuItem, OrderItem, OrderType, Station } from '@/lib/types';
 import { getDraft, lineTotal, putDraft, removeDraft, useDrafts, type DraftLine, type OrderDraft } from './drafts';
 import { ItemDialog } from './ItemDialog';
 
+/** Pantalla dedicada de meseros (sin el menú lateral de la app). */
 export function WaiterPage() {
   useLiveTables('mesero', ['orders', 'order_items', 'kitchen_tickets', 'menu_items'], [['orders'], ['menu']]);
   return (
-    <Routes>
-      <Route index element={<OrderList />} />
-      <Route path="orden/:orderId" element={<OrderEditor />} />
-    </Routes>
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <WaiterTopBar />
+      <div className="flex-1 p-3 sm:p-4">
+        <Routes>
+          <Route index element={<OrderList />} />
+          <Route path="orden/:orderId" element={<OrderEditor />} />
+        </Routes>
+      </div>
+    </div>
   );
 }
 
-const TICKET_TONE: Record<string, 'slate' | 'blue' | 'amber' | 'green' | 'violet' | 'red'> = {
-  en_espera: 'violet', nuevo: 'blue', en_preparacion: 'amber', listo: 'green', entregado: 'slate', anulado: 'red',
-};
-const TICKET_TEXT: Record<string, string> = {
-  en_espera: 'En espera', nuevo: 'En cola', en_preparacion: 'Preparando', listo: 'Listo', entregado: 'Entregado', anulado: 'Anulado',
-};
+function WaiterTopBar() {
+  const { restaurant, device, operator, setOperator, actor } = useApp();
+  return (
+    <header className="sticky top-0 z-30 flex items-center gap-2 border-b bg-white px-3 py-2 shadow-sm">
+      {!device && <Link to="/" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label="Inicio" title="Inicio"><Home className="h-5 w-5" /></Link>}
+      <span className="text-lg font-black">Meseros</span>
+      <span className="hidden text-sm text-slate-500 sm:inline">· {restaurant?.name}</span>
+      <div className="ml-auto flex items-center gap-2">
+        <SyncIndicator />
+        {actor && (
+          <span className="flex items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-3 pr-1 text-sm" data-testid="operator-name">
+            <UserRound className="h-4 w-4" /><b>{actor.name}</b>
+            {device && operator ? (
+              // Solo se cierra en este equipo; lo que esté en la cola se envía con su sesión.
+              <button onClick={() => setOperator(null)} className="ml-1 flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold ring-1 ring-slate-200 hover:bg-slate-50" data-testid="switch-operator">
+                <LogOut className="h-3.5 w-3.5" />Cambiar
+              </button>
+            ) : <span className="pr-2" />}
+          </span>
+        )}
+      </div>
+    </header>
+  );
+}
+
+type MiniTicket = OrderWithItems['tickets'][number];
+
+/** Estado de cocina por estación y tiempo (los tickets son por unidad). */
+function kitchenGroups(tickets: MiniTicket[], stations: Station[] | undefined) {
+  const m = new Map<string, { key: string; station: string; course: number; total: number; ready: number; cooking: number; queued: number; held: number; blocked: number; priority: boolean }>();
+  for (const t of tickets) {
+    if (t.status === 'anulado') continue;
+    const key = `${t.station_id}|${t.course}`;
+    const g = m.get(key) ?? { key, station: stations?.find((s) => s.id === t.station_id)?.name ?? '', course: t.course, total: 0, ready: 0, cooking: 0, queued: 0, held: 0, blocked: 0, priority: false };
+    g.total += 1;
+    if (t.status === 'listo' || t.status === 'entregado') g.ready += 1;
+    else if (t.status === 'en_preparacion') g.cooking += 1;
+    else if (t.status === 'nuevo') g.queued += 1;
+    else if (t.status === 'en_espera') g.held += 1;
+    if (t.blocked) g.blocked += 1;
+    if (t.priority) g.priority = true;
+    m.set(key, g);
+  }
+  return [...m.values()].sort((a, b) => a.course - b.course || a.station.localeCompare(b.station));
+}
+
+function groupText(g: ReturnType<typeof kitchenGroups>[number]): string {
+  if (g.blocked) return 'faltante';
+  if (g.ready === g.total) return 'listo';
+  if (g.held === g.total) return 'en espera';
+  return `${g.ready}/${g.total} listos`;
+}
+function groupTone(g: ReturnType<typeof kitchenGroups>[number]) {
+  if (g.blocked) return 'red' as const;
+  if (g.ready === g.total) return 'green' as const;
+  if (g.held === g.total) return 'violet' as const;
+  return g.cooking ? 'amber' as const : 'blue' as const;
+}
 
 /** Órdenes de la cola local que aún no llegan al servidor. */
 function usePendingOrders() {
   const { ops } = useSync();
-  return useMemo(() => ops.filter((o) => o.rpc === 'rpc_order_submit'), [ops]);
+  return useMemo(() => ops.filter((o) => o.rpc === 'rpc_order_submit' || o.rpc === 'rpc_order_submit_v2'), [ops]);
 }
 
 function OrderList() {
-  const { restaurant, actor, device } = useApp();
+  const { restaurant, actor } = useApp();
   const nav = useNavigate();
   const [scope, setScope] = useState<'mias' | 'todas'>('mias');
   const { data: orders, isLoading } = useOrders({ status: 'abierta' });
@@ -67,10 +125,7 @@ function OrderList() {
   };
 
   return (
-    <div className={device ? 'min-h-screen bg-slate-50 p-4' : ''}>
-      {device && (
-        <div className="mb-4 flex items-center justify-between"><OperatorBadge /><SyncIndicator /></div>
-      )}
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Órdenes abiertas</h1>
         <div className="flex items-center gap-2">
@@ -113,16 +168,16 @@ function OrderList() {
         </EmptyState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((o) => <OrderCard key={o.id} order={o} serverName={names.get(o.server_staff_id ?? '')} stationName={(id) => stations?.find((st) => st.id === id)?.name ?? ''} onOpen={() => nav(`/mesero/orden/${o.id}`)} tz={restaurant!.timezone} />)}
+          {visible.map((o) => <OrderCard key={o.id} order={o} serverName={names.get(o.server_staff_id ?? '')} stations={stations} onOpen={() => nav(`/mesero/orden/${o.id}`)} tz={restaurant!.timezone} />)}
         </div>
       )}
     </div>
   );
 }
 
-function OrderCard({ order, serverName, onOpen, tz, stationName }: { order: OrderWithItems; serverName?: string; onOpen: () => void; tz: string; stationName: (id: string) => string }) {
-  const live = order.tickets.filter((t) => t.status !== 'anulado');
-  const ready = live.filter((t) => t.status === 'listo').length;
+function OrderCard({ order, serverName, onOpen, tz, stations }: { order: OrderWithItems; serverName?: string; onOpen: () => void; tz: string; stations?: Station[] }) {
+  const groups = kitchenGroups(order.tickets, stations);
+  const ready = order.tickets.filter((t) => t.status === 'listo').length;
   const pendingLines = order.items.filter((i) => i.status === 'pendiente').length;
   return (
     <button onClick={onOpen} className="text-left" data-testid={`order-card-${order.number}`}>
@@ -135,7 +190,7 @@ function OrderCard({ order, serverName, onOpen, tz, stationName }: { order: Orde
           {ready > 0 && <Badge tone="green"><Bell className="h-3 w-3" />{ready} listo(s)</Badge>}
         </div>
         <div className="mt-3 flex flex-wrap gap-1">
-          {live.map((t) => <Badge key={t.id} tone={t.blocked ? 'red' : TICKET_TONE[t.status]}>{stationName(t.station_id)}: {t.blocked ? 'faltante' : TICKET_TEXT[t.status].toLowerCase()}{t.course > 1 ? ` · T${t.course}` : ''}</Badge>)}
+          {groups.map((g) => <Badge key={g.key} tone={groupTone(g)}>{g.station}: {groupText(g)}{g.course > 1 ? ` · T${g.course}` : ''}</Badge>)}
           {pendingLines > 0 && <Badge tone="slate">{pendingLines} sin enviar</Badge>}
         </div>
       </Card>
@@ -150,7 +205,7 @@ function OrderEditor() {
   const { orderId } = useParams();
   const nav = useNavigate();
   const toast = useToast();
-  const { restaurant, actor, can, device } = useApp();
+  const { restaurant, actor, can, device, setOperator } = useApp();
   const enqueue = useEnqueue();
   const requestOverride = useOverride();
   const { ops } = useSync();
@@ -190,7 +245,7 @@ function OrderEditor() {
   const [search, setSearch] = useState('');
 
   const pendingOps = ops.filter((o) => (o.args.p_order as { id?: string } | undefined)?.id === orderId || o.args.p_order_id === orderId);
-  const syncingLines = pendingOps.filter((o) => o.rpc === 'rpc_order_submit')
+  const syncingLines = pendingOps.filter((o) => o.rpc === 'rpc_order_submit' || o.rpc === 'rpc_order_submit_v2')
     .flatMap((o) => ((o.args.p_order as { items?: DraftLine[] }).items ?? []))
     .filter((l) => !server?.items.some((i) => i.id === l.id));
 
@@ -218,11 +273,11 @@ function OrderEditor() {
   const submit = async (send: 'todo' | 'ninguno' | string) => {
     if (!headerValid) { toast('warning', 'Indica el número de mesa.'); return; }
     const label = `${d.order_type === 'mesa' ? `Mesa ${d.table_label}` : d.customer_name || ORDER_TYPE_LABELS[d.order_type]}: ${send === 'ninguno' ? 'guardar' : 'enviar a cocina'}`;
-    await enqueue('rpc_order_submit', {
+    await enqueue('rpc_order_submit_v2', {
       p_order: {
         id: d.id, order_type: d.order_type, table_label: d.table_label || null, guest_count: d.guest_count, customer_name: d.customer_name || null,
         notes: d.notes || null, client_created_at: new Date().toISOString(),
-        items: d.lines.map((l) => ({ id: l.id, menu_item_id: l.menu_item_id, qty: l.qty, modifiers: l.modifiers.map((m) => ({ modifier_id: m.modifier_id, qty: m.qty })), notes: l.notes || null, course: l.course, seat: l.seat, replaces_item_id: l.replaces_item_id ?? null })),
+        items: d.lines.map((l) => ({ id: l.id, menu_item_id: l.menu_item_id, qty: l.qty, modifiers: l.modifiers.map((m) => ({ modifier_id: m.modifier_id, qty: m.qty })), notes: l.notes || null, course: l.course, seat: l.seat, replaces_item_id: l.replaces_item_id ?? null, extra_station_ids: l.extra_station_ids ?? [] })),
       },
       p_send: send,
     }, { label, meta: { orderId: d.id } });
@@ -230,6 +285,8 @@ function OrderEditor() {
     setDraft({ ...d, isNew: false, lines: send === 'ninguno' ? d.lines : [] });
     toast('success', send === 'ninguno' ? 'Orden guardada' : 'Enviado a cocina');
     if (send !== 'ninguno' && d.isNew) nav('/mesero');
+    // Terminal compartida: tras enviar, el siguiente mesero se identifica con su PIN.
+    if (send !== 'ninguno' && device) setOperator(null);
   };
 
   const authorize = async (perm: string, why: string): Promise<string | null | false> => {
@@ -247,18 +304,18 @@ function OrderEditor() {
     toast('info', `Anulado: ${item.name}`);
   };
 
-  const ticketsByStation = (server?.tickets ?? []).filter((t) => t.status !== 'anulado');
-  const stationName = (id: string) => stations?.find((s) => s.id === id)?.name ?? '';
+  const liveTickets = (server?.tickets ?? []).filter((t) => t.status !== 'anulado');
+  const groups = kitchenGroups(liveTickets, stations);
+  const cooking = liveTickets.filter((t) => t.status === 'nuevo' || t.status === 'en_preparacion');
   const total = [...(server?.items.filter((i) => i.status === 'enviado') ?? []).map((i) => lineTotal({ unit_price: Number(i.unit_price), qty: i.qty, modifiers: i.modifiers.map((m) => ({ ...m, price_delta: Number(m.price_delta) })) })),
     ...d.lines.map(lineTotal)].reduce((a, b) => a + b, 0);
 
   return (
-    <div className={cx('grid gap-4 lg:grid-cols-[1fr_420px]', device && 'min-h-screen bg-slate-50 p-4')}>
+    <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
       {/* Menú */}
       <section className="min-w-0">
         <div className="mb-3 flex items-center gap-2">
           <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => nav('/mesero')}>Órdenes</Button>
-          {device && <div className="ml-auto flex items-center gap-2"><OperatorBadge /><SyncIndicator /></div>}
         </div>
         {!closed && (
           <>
@@ -291,8 +348,8 @@ function OrderEditor() {
       </section>
 
       {/* Orden */}
-      <aside className="lg:sticky lg:top-20 lg:self-start">
-        <Card className="flex max-h-[calc(100vh-6rem)] flex-col">
+      <aside className="lg:sticky lg:top-16 lg:self-start">
+        <Card className="flex max-h-[calc(100vh-5.5rem)] flex-col">
           <div className="border-b p-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-lg font-bold" data-testid="order-title">{server ? `Orden #${server.number}` : 'Nueva orden'}</h2>
@@ -317,40 +374,35 @@ function OrderEditor() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {/* Estado de cocina */}
-            {ticketsByStation.length > 0 && (
-              <div className="mb-3 space-y-1.5">
-                {ticketsByStation.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                    <span className="flex items-center gap-2"><ChefHat className="h-4 w-4 text-slate-400" />{stationName(t.station_id)}{t.course > 1 && ` · tiempo ${t.course}`}</span>
-                    <span className="flex items-center gap-2">
-                      {(t.status === 'nuevo' || t.status === 'en_preparacion') && (
-                        <Button size="sm" variant="ghost" title="Pedir prioridad (requiere gerente)" aria-label="Pedir prioridad" onClick={async () => {
-                          const ov = await authorize('orders.priority', 'Dar prioridad a este ticket en cocina.');
-                          if (ov === false) return;
-                          await enqueue('rpc_ticket_action', { p_ticket_id: t.id, p_action: 'prioridad', p_args: {}, p_override: ov }, { label: `Prioridad ${stationName(t.station_id)}` });
-                          toast('info', 'Prioridad enviada a cocina');
-                        }}><Star className="h-4 w-4 text-fuchsia-600" /></Button>
-                      )}
-                      <Badge tone={t.blocked ? 'red' : TICKET_TONE[t.status]}>{t.blocked ? 'Faltante' : TICKET_TEXT[t.status]}</Badge>
-                      {t.status === 'listo' && (
-                        <Button size="sm" variant="success" icon={<CheckCircle2 className="h-4 w-4" />} data-testid="deliver-ticket"
-                          onClick={() => void enqueue('rpc_ticket_action', { p_ticket_id: t.id, p_action: 'entregar', p_args: {} }, { label: `Entregar ${stationName(t.station_id)}` })}>
-                          Entregar
-                        </Button>
-                      )}
-                    </span>
+            {/* Estado de cocina (por estación; cada platillo es un ticket) */}
+            {groups.length > 0 && (
+              <div className="mb-3 space-y-1.5" data-testid="kitchen-status">
+                {groups.map((g) => (
+                  <div key={g.key} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2"><ChefHat className="h-4 w-4 text-slate-400" />{g.station}{g.course > 1 && ` · tiempo ${g.course}`}
+                      {g.priority && <Star className="h-3.5 w-3.5 text-fuchsia-600" aria-label="Con prioridad" />}</span>
+                    <Badge tone={groupTone(g)}>{groupText(g)}</Badge>
                   </div>
                 ))}
-                {ticketsByStation.some((t) => t.status === 'en_espera') && (
-                  <Button size="sm" variant="secondary" className="w-full" icon={<Flame className="h-4 w-4" />}
-                    onClick={() => {
-                      const next = Math.min(...ticketsByStation.filter((t) => t.status === 'en_espera').map((t) => t.course));
-                      void enqueue('rpc_order_fire_course', { p_order_id: d.id, p_course: next }, { label: `Marchar tiempo ${next}` });
-                    }}>
-                    Marchar siguiente tiempo
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  {cooking.length > 0 && (
+                    <Button size="sm" variant="secondary" className="flex-1" icon={<Star className="h-4 w-4 text-fuchsia-600" />} onClick={async () => {
+                      const ov = await authorize('orders.priority', 'Dar prioridad en cocina a toda esta orden.');
+                      if (ov === false) return;
+                      await enqueue('rpc_order_priority', { p_order_id: d.id, p_override: ov }, { label: `Prioridad orden #${server?.number}` });
+                      toast('info', 'Prioridad enviada a cocina');
+                    }}>Pedir prioridad</Button>
+                  )}
+                  {liveTickets.some((t) => t.status === 'en_espera') && (
+                    <Button size="sm" variant="secondary" className="flex-1" icon={<Flame className="h-4 w-4" />}
+                      onClick={() => {
+                        const next = Math.min(...liveTickets.filter((t) => t.status === 'en_espera').map((t) => t.course));
+                        void enqueue('rpc_order_fire_course', { p_order_id: d.id, p_course: next }, { label: `Marchar tiempo ${next}` });
+                      }} data-testid="fire-course">
+                      Marchar siguiente tiempo
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -422,12 +474,12 @@ function OrderEditor() {
                 </div>
               </>
             )}
-            {actor && <p className="text-center text-xs text-slate-400"><Users className="mr-1 inline h-3 w-3" />Atiende: {actor.name}</p>}
+            {actor && <p className="text-center text-xs text-slate-400"><UserRound className="mr-1 inline h-3 w-3" />Atiende: {actor.name}</p>}
           </div>
         </Card>
       </aside>
 
-      <ItemDialog open={!!dialog} item={dialog?.item ?? null} initial={dialog?.initial ?? null} menu={menu as MenuData} currency={restaurant!.currency}
+      <ItemDialog open={!!dialog} item={dialog?.item ?? null} initial={dialog?.initial ?? null} menu={menu as MenuData} currency={restaurant!.currency} stations={stations}
         onClose={() => setDialog(null)}
         onSave={(line) => {
           const exists = d.lines.some((l) => l.id === line.id);
@@ -461,7 +513,7 @@ function OrderEditor() {
         }
       }} />
 
-      <CloseDialog mode={closing} onClose={() => setClosing(null)} hasActive={ticketsByStation.some((t) => t.status !== 'entregado')}
+      <CloseDialog mode={closing} onClose={() => setClosing(null)} hasActive={liveTickets.some((t) => t.status === 'en_espera' || t.status === 'nuevo' || t.status === 'en_preparacion')}
         onConfirm={async (reason) => {
           const mode = closing;
           setClosing(null);
@@ -522,7 +574,7 @@ function CloseDialog({ mode, onClose, onConfirm, hasActive }: { mode: 'close' | 
       {hasActive && (
         <label className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
           <input type="checkbox" checked={reason === 'forzar'} onChange={(e) => setReason(e.target.checked ? 'forzar' : '')} />
-          Hay platillos sin marcar como entregados. Cerrar de todos modos.
+          Cocina todavía no termina algunos platillos. Cerrar de todos modos.
         </label>
       )}
     </Modal>
