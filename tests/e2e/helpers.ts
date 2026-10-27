@@ -8,7 +8,6 @@ export async function q<T = Record<string, unknown>>(sql: string, params: unknow
   const r = await pool.query(sql, params);
   return r.rows as T[];
 }
-export async function closeDb() { await pool.end(); }
 
 export async function login(page: Page, email: string) {
   await page.goto('/');

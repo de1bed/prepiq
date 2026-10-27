@@ -39,8 +39,16 @@ create table if not exists auth.users (
   recovery_token text,
   email_change_token_new text,
   email_change text,
+  banned_until timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+create table if not exists auth.refresh_tokens (
+  id bigserial primary key,
+  token varchar(255),
+  user_id varchar(255),
+  revoked boolean,
+  created_at timestamptz default now()
 );
 create table if not exists auth.identities (
   id uuid primary key default gen_random_uuid(),

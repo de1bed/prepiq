@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useApp } from './state/session';
 import { supabaseConfigured } from './lib/supabase';
 import { Spinner } from './components/ui';
@@ -6,6 +6,7 @@ import { Shell } from './components/Shell';
 import { LoginPage } from './features/auth/LoginPage';
 import { OnboardingPage } from './features/auth/OnboardingPage';
 import { SetupMissing } from './features/auth/SetupMissing';
+import { PairPage } from './features/auth/PairPage';
 import { HomePage } from './features/home/HomePage';
 import { WaiterPage } from './features/mesero/WaiterPage';
 import { KdsPage, KdsStationPicker } from './features/kds/KdsPage';
@@ -31,8 +32,11 @@ function RequirePerm({ perm, children }: { perm: string | string[]; children: Re
 
 export function App() {
   const { status, contexts, device, restaurant, error, signOut } = useApp();
+  const location = useLocation();
 
   if (!supabaseConfigured) return <SetupMissing />;
+  // Vincular un equipo funciona con o sin sesión (QR de Administración → Dispositivos).
+  if (location.pathname === '/vincular') return <PairPage />;
   if (status === 'loading') return <Spinner className="min-h-screen" />;
   if (status === 'signed_out') {
     return (

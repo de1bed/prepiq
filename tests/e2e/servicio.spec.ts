@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { closeDb, enterPin, expectSynced, newPage, q } from './helpers';
-
-test.afterAll(async () => { await closeDb(); });
+import { enterPin, expectSynced, newPage, q } from './helpers';
 
 test('pedido → cocina → entrega, con actor y consumo registrados', async ({ browser }) => {
   // Mesera captura en su cuenta personal.

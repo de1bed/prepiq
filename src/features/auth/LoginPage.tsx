@@ -1,5 +1,6 @@
-import { ChefHat } from 'lucide-react';
+import { ChefHat, QrCode } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button, Card, Field, Input } from '@/components/ui';
 
@@ -54,9 +55,10 @@ export function LoginPage() {
             {mode === 'login' ? 'Crear cuenta' : 'Iniciar sesión'}
           </button>
         </p>
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Las tabletas de cocina, terminales de meseros y el reloj checador también inician sesión aquí con su propia cuenta de dispositivo.
-        </p>
+        <Link to="/vincular" className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          data-testid="go-pair">
+          <QrCode className="h-4 w-4" />¿Es una tableta o reloj del restaurante? Vincular con código
+        </Link>
       </Card>
     </div>
   );
