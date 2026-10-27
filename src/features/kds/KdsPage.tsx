@@ -82,6 +82,17 @@ export function KdsPage() {
   const done = useMemo(() => all.filter((t) => t.status === 'listo' || t.status === 'entregado' || t.status === 'anulado')
     .sort((a, b) => (b.ready_at ?? b.updated_at).localeCompare(a.ready_at ?? a.updated_at)), [all]);
   const selected = queue.find((t) => t.id === selectedId) ?? queue[0] ?? null;
+  // "Orden 675 · platillo 2 de 3": cada platillo es su propio ticket, así que una orden se repite.
+  const orderPos = useMemo(() => {
+    const byOrder = new Map<string, TicketWithItems[]>();
+    for (const t of all) if (t.status !== 'anulado') byOrder.set(t.order_id, [...(byOrder.get(t.order_id) ?? []), t]);
+    const pos = new Map<string, { n: number; total: number }>();
+    for (const ts of byOrder.values()) {
+      ts.sort((a, b) => a.created_at.localeCompare(b.created_at) || (a.unit_no ?? 0) - (b.unit_no ?? 0) || a.id.localeCompare(b.id));
+      ts.forEach((t, i) => pos.set(t.id, { n: i + 1, total: ts.length }));
+    }
+    return pos;
+  }, [all]);
 
   // Otras estaciones: tickets en cola (izq.) y urgentes (der.).
   const others = useMemo(() => (stations ?? []).filter((s) => s.active && s.kind !== 'pase' && s.id !== stationId).map((s) => {
@@ -224,7 +235,7 @@ export function KdsPage() {
               <div className="space-y-2 p-2">
                 {queue.map((t, i) => (
                   <TicketRow key={t.id} ticket={t} index={i} now={now} tz={restaurant!.timezone} settings={restaurant!.settings}
-                    selected={t.id === selected?.id} isNew={fresh.has(t.id)}
+                    selected={t.id === selected?.id} isNew={fresh.has(t.id)} orderPos={orderPos.get(t.id)}
                     onSelect={() => setSelectedId(t.id)}
                     onBump={() => void act(t, 'listo')}
                     onMenu={() => setMenuFor(t)}

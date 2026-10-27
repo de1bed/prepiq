@@ -8,17 +8,18 @@ const STEPS: { img: string; title: string; text: string[] }[] = [
     img: '/ayuda/kds-1-lista.png',
     title: '1. Los tickets llegan en lista',
     text: [
-      'Cada renglón es UN platillo. Si la mesa pide 3 arracheras, llegan 3 renglones (1/3, 2/3, 3/3).',
-      'Los nuevos se agregan hasta abajo. El reloj de la derecha corre desde que llegó a la cocina.',
-      'Verde = a tiempo, amarillo = atención, rojo = tarde.',
+      'Cada renglón es UN platillo. Los azules están cerrados: todavía no se ve qué es.',
+      'Los nuevos se agregan hasta abajo. Si la mesa pide 3 arracheras, llegan 3 renglones.',
     ],
   },
   {
     img: '/ayuda/kds-2-abrir.png',
     title: '2. Selecciona y toca "Abrir"',
     text: [
-      'Los tickets llegan cerrados. Toca el renglón para seleccionarlo (queda con borde blanco) y luego "Abrir".',
-      'Abrir = empezar a prepararlo. Ahí ya ves el platillo, sus modificadores (MAÍZ, SIN CEBOLLA…) y notas.',
+      'Toca un renglón azul para seleccionarlo (queda con borde blanco) y luego "Abrir".',
+      'Abrir = empezar a prepararlo. Ahí ya ves la mesa, el platillo, sus modificadores (MAÍZ, SIN CEBOLLA…) y notas.',
+      '"Orden 675 · platillo 2 de 3" quiere decir: la orden 675 trae 3 platillos para esta estación y este es el segundo.',
+      'El reloj corre desde que llegó a la cocina: verde = a tiempo, amarillo = atención, rojo = tarde.',
     ],
   },
   {

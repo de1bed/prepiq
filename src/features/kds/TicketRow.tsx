@@ -1,4 +1,4 @@
-import { AlertOctagon, BookOpen, Check, CloudOff, Lock, MoreHorizontal, RotateCcw, Share2, Star } from 'lucide-react';
+import { AlertOctagon, BookOpen, Check, CloudOff, MoreHorizontal, RotateCcw, Share2, Star } from 'lucide-react';
 import { memo } from 'react';
 import { modifierChips, ticketTiming, actionLabel, type PendingInfo } from '@/lib/kitchen';
 import { clock, formatTime } from '@/lib/time';
@@ -24,6 +24,8 @@ export interface TicketRowProps {
   settings: RestaurantSettings;
   selected: boolean;
   isNew?: boolean;
+  /** Posición del platillo dentro de su orden en esta estación (1 de 3…). */
+  orderPos?: { n: number; total: number };
   onSelect: () => void;
   onBump: () => void;
   onMenu: () => void;
@@ -32,9 +34,9 @@ export interface TicketRowProps {
 }
 
 /**
- * Un renglón por ticket. Cerrado (nuevo) no muestra el contenido; al
- * abrirlo (botón "Abrir" del costado) se ve el platillo y aparecen
- * Receta, "…" y Listo. El cronómetro corre desde que llegó a cocina.
+ * Un renglón por platillo. Cerrado (nuevo) es solo un renglón azul, sin
+ * nada escrito; al abrirlo (botón "Abrir" del costado) se ve todo y
+ * aparecen Receta, "…" y Listo. El cronómetro corre desde que llegó.
  */
 export const TicketRow = memo(function TicketRow(p: TicketRowProps) {
   const t = p.ticket;
@@ -43,6 +45,21 @@ export const TicketRow = memo(function TicketRow(p: TicketRowProps) {
   const open = t.status === 'en_preparacion';
   const live = t.items.filter((i) => i.status !== 'anulado');
   const multi = live.length > 1;
+
+  if (!open) {
+    return (
+      <article
+        onClick={p.onSelect}
+        className={cx('h-16 cursor-pointer rounded-lg border-4 bg-blue-600 transition hover:bg-blue-500',
+          p.selected ? 'border-white' : 'border-blue-600', p.isNew && 'ticket-new')}
+        data-testid={`ticket-${t.order_number}`}
+        data-ticket-id={t.id}
+        data-open="false"
+        aria-selected={p.selected}
+        aria-label={`Ticket cerrado ${p.index + 1}`}
+      />
+    );
+  }
 
   return (
     <article
@@ -61,12 +78,12 @@ export const TicketRow = memo(function TicketRow(p: TicketRowProps) {
 
       <div className="min-w-0 flex-1 py-2 pr-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-xl font-black leading-none">#{t.order_number}</span>
-          <span className="text-lg font-bold leading-none">{ticketPlace(t)}</span>
-          {t.server_name && <span className="text-sm text-slate-400">{t.server_name}</span>}
-          {(t.unit_count ?? 1) > 1 && (
-            <span className="rounded bg-slate-700 px-1.5 text-xs font-bold" title="Unidad de la misma línea">{t.unit_no}/{t.unit_count}</span>
+          <span className="text-xl font-black leading-none">{ticketPlace(t)}</span>
+          <span className="text-base font-semibold leading-none text-slate-300">Orden {t.order_number}</span>
+          {p.orderPos && p.orderPos.total > 1 && (
+            <span className="rounded bg-slate-700 px-1.5 text-sm font-bold" data-testid="order-pos">platillo {p.orderPos.n} de {p.orderPos.total}</span>
           )}
+          {t.server_name && <span className="text-sm text-slate-400">{t.server_name}</span>}
           {t.priority && <span className="flex items-center gap-1 rounded bg-fuchsia-600 px-1.5 text-xs font-bold uppercase"><Star className="h-3 w-3" />Prioridad</span>}
           {t.course > 1 && <span className="rounded bg-violet-700 px-1.5 text-xs font-bold uppercase">Tiempo {t.course}</span>}
           {t.extra_station && <span className="flex items-center gap-1 rounded bg-sky-700 px-1.5 text-xs font-bold uppercase"><Share2 className="h-3 w-3" />Extra</span>}
@@ -79,7 +96,7 @@ export const TicketRow = memo(function TicketRow(p: TicketRowProps) {
           )}
         </div>
 
-        {open ? (
+        {(
           <ul className="mt-2 space-y-1" data-testid="ticket-items">
             {t.items.map((i) => {
               const chips = modifierChips(i.modifiers ?? []);
@@ -113,10 +130,6 @@ export const TicketRow = memo(function TicketRow(p: TicketRowProps) {
               );
             })}
           </ul>
-        ) : (
-          <div className="mt-1 flex items-center gap-1.5 text-sm text-slate-500" data-testid="ticket-closed">
-            <Lock className="h-3.5 w-3.5" /> Cerrado · selecciónalo y toca <b className="text-slate-300">Abrir</b>
-          </div>
         )}
       </div>
 
