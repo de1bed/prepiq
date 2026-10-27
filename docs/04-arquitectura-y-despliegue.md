@@ -95,10 +95,11 @@ docs/                  este documento y los demás entregables
    - **Cloudflare Pages**: build `npm run build`, salida `dist`, y regla SPA a `/index.html`.
 8. **Primer administrador:** abre la app → *Crear cuenta* → *Crear mi restaurante*. Quedas como propietario/administrador.
 9. **Configurar:** Administración → Restaurante (zona horaria, hora de corte, lenguaje de cocina) → Estaciones → Menú (o Importar CSV) → Insumos → Recetas → Personal (PIN) → Etiquetas (formatos y reglas validadas).
-10. **Dispositivos:** para cada tableta/terminal/reloj crea una cuenta (correo del equipo), inicia sesión en el dispositivo, *Unirme con código → Es un dispositivo*, y apruébalo en *Administración → Dispositivos* eligiendo su modo y estación. Recomendado: modo quiosco/pantalla completa del sistema y "Agregar a pantalla de inicio" (PWA).
+10. **Dispositivos:** *Administración → Dispositivos → Agregar dispositivo* → nombre, modo y estación → **Generar QR**. En la tableta, escanea el QR con la cámara (o abre `/vincular` y escribe el código `XXXX-XXXX`). El servidor crea la cuenta del equipo con una contraseña aleatoria; nadie tiene que crear cuentas ni recordar contraseñas. El código sirve una vez y vence en 15 min. Si cambias de tableta: **Volver a vincular** en la fila del equipo (la cuenta anterior queda bloqueada, el historial se conserva). Recomendado: modo quiosco/pantalla completa y "Agregar a pantalla de inicio" (PWA).
 
 ### 4.3.1 Estado del proyecto `ptbqyymhwmfotfxupvzk` (22 oct 2026)
 
+- **27 oct 2026:** migración `vincular_dispositivos` aplicada y datos de prueba cargados en el restaurante "David Prueba" con [`supabase/demo/datos-prueba.sql`](../supabase/demo/datos-prueba.sql) (todo ficticio; PIN de prueba en el encabezado del archivo).
 - **App publicada:** https://prepiq-xi.vercel.app (Vercel, proyecto `prepiq`, rama `prepiq-v2`, variables `VITE_SUPABASE_*` configuradas). La rama de producción de Vercel por defecto es `main` (piloto anterior): cambiarla a `prepiq-v2` en *Settings → Environments → Production → Branch Tracking* para que cada push publique la versión nueva.
 
 - Esquema completo instalado con el conector de Supabase (Postgres 17.11): 54 tablas, RLS en todas las de `public`, 70 políticas, 91 triggers, Realtime en 9 tablas. **Sin datos demo** (no se ejecutó `seed.sql`).
